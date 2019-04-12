@@ -12,6 +12,3 @@ testdisk
 
 #Ignore .html files
 *.html
-
-#Ignore the TODO file
-TODO
