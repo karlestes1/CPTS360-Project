@@ -7,6 +7,11 @@
 #Ignore disk images
 disk
 diskimage
+mydisk
+testdisk
 
 #Ignore .html files
 *.html
+
+#Ignore the TODO file
+TODO
