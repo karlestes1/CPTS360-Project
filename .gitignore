@@ -5,5 +5,5 @@
 *.o
 
 #Ignore disk images
-./disk
-./diskimage
+disk
+diskimage
