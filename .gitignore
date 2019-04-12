@@ -1,3 +1,9 @@
 #Ignore .vscode
 .vscode
 
+#Ignore object files used for compiling
+*.o
+
+#Ignore disk images
+./disk
+./diskimage
