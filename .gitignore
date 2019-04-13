@@ -1,0 +1,16 @@
+#Ignore .vscode
+.vscode
+
+#Ignore object files used for compiling
+*.o
+
+#Ignore disk images
+disk
+diskimage
+mydisk
+testdisk
+
+#Ignore .html files
+*.html
+
+CompilerPath.txt

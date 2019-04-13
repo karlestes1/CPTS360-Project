@@ -1,0 +1,26 @@
+360 Project:
+    Level 1:
+        ☐ Fix error messages
+        ☐ Add color to messages
+        ☐ Add debug mode @started(19-04-11 22:25)
+            -Global variable
+            -Passed as a paremter when starting the program
+                -After passing disk argument
+            -Some functions might turn debug off to run
+
+    Level 2:
+        ☐ open()
+        ☐ close()
+        ☐ read()
+        ☐ write()
+        ☐ lseek()
+        ☐ cat()
+        ☐ cp()
+        ☐ touch()
+        ☐ update printMenu()
+
+    Level 3:
+        ☐ mount()
+        ☐ unmount()
+        ☐ file permission checking
+        ☐ update printMenu()
