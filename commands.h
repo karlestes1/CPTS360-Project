@@ -107,4 +107,10 @@ void printMenu();
 //iput() on all minodes with (refCount > 0 && DIRTY);
 void quit();
 
+//Personal functions to turn DEBUG global on or off
+//debug_on() will mean console log messages will print
+//debug_off() will mean no console log messages will print
+void debug_on();
+void debug_off();
+
 #endif

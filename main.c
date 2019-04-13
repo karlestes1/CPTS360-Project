@@ -5,7 +5,7 @@
 * CPTS 360: Lab7	 *
 * * * * * * * * * * */
 #include "init.h"
-#include "commands.h"
+#include "commands.h" 
 
 //Global variables
 MINODE minode[NMINODE];
@@ -21,6 +21,7 @@ char   buf[BLKSIZE];
 char *GREEN = "\033[1m\033[32m", *NORMAL =  "\033[0m", *RED = "\033[1m\033[91m";
 char *LAVENDER = "\033[0m\033[35m", *PURPLE = "\033[1m\033[35m", *DARKBLUE = "\033[1m\033[34m";
 char *BLUE = "\033[0m\033[34m", *YELLOW = "\033[1m\033[33m", *BRIGHT = "\033[0m\033[1m";
+bool DEBUG = false;
 
 int main(int argc, char* argv[], char* env[])
 {
@@ -32,6 +33,19 @@ int main(int argc, char* argv[], char* env[])
     {
         case 1: printf("%sPlease enter a DISKNAME%s\n", YELLOW, NORMAL); exit(3); break;
         case 2: break;
+        case 3:
+                if(strcmp("DEBUG", argv[2]) == 0) //DEBUG is turned on
+                {
+                    DEBUG = true;
+                    printf("DEBUG is set to true\n");
+                    sleep(2);
+                }
+                else //Just keep DEBUG at default
+                {
+                    printf("Second parameter not recognized... DEBUG is set to false\n");
+                    sleep(2);
+                }
+                break;
         default: printf("Too many parameters passed to program\n"); exit(3); break;
     }
 

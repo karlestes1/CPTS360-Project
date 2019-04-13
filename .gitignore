@@ -12,3 +12,5 @@ testdisk
 
 #Ignore .html files
 *.html
+
+CompilerPath.txt

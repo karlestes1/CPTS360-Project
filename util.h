@@ -18,7 +18,7 @@ extern int    nblocks, ninodes, bmap, imap, inode_start;
 extern char   line[256], cmd[32], pathname[256];
 extern char   buf[BLKSIZE];
 extern char *GREEN, *NORMAL, *RED, *LAVENDER, *PURPLE, *DARKBLUE, *BLUE, *YELLOW, *BRIGHT;
-
+extern bool DEBUG; //Used to turn debugging on and off
 
 //Gets the data block from the device at the specified blk number
 //Returns 0 if block cannot be grabbed

@@ -134,7 +134,7 @@ MINODE *iget(int dev, int ino)
     mip = &minode[i];
     if (mip->dev == dev && mip->ino == ino){
        mip->refCount++;
-       //printf("found [%d %d] as minode[%d] in core\n", dev, ino, i);
+       if(DEBUG) {printf("found [%d %d] as minode[%d] in core\n", dev, ino, i);}
        //printf("minode[%d]->refCount=%d\n", i, mip->refCount);
        return mip;
     }
@@ -143,7 +143,7 @@ MINODE *iget(int dev, int ino)
   for (i=0; i<NMINODE; i++){
     mip = &minode[i];
     if (mip->refCount == 0){
-      //printf("allocating NEW minode[%d] for [%d %d]\n", i, dev, ino);
+      if(DEBUG) {printf("allocating NEW minode[%d] for [%d %d]\n", i, dev, ino);}
        mip->refCount = 1;
        mip->dev = dev;
        mip->ino = ino;
@@ -152,7 +152,7 @@ MINODE *iget(int dev, int ino)
        blk  = (ino-1) / 8 + inode_start;
        disp = (ino-1) % 8;
 
-       //printf("iget: ino=%d blk=%d disp=%d\n", ino, blk, disp);
+       if(DEBUG) {printf("iget: ino=%d blk=%d disp=%d\n", ino, blk, disp);}
 
        get_block(dev, blk, buf);
        ip = (INODE *)buf + disp;
@@ -183,7 +183,7 @@ void iput(MINODE *mip)
  if (!mip->dirty)       return;
  
  /* write back */
- //printf("iput: dev=%d ino=%d\n", mip->dev, mip->ino); 
+ if(DEBUG) {printf("iput: dev=%d ino=%d\n", mip->dev, mip->ino);}
 
  block =  ((mip->ino - 1) / 8) + inode_start;
  offset =  (mip->ino - 1) % 8;
@@ -290,3 +290,4 @@ void mytruncate(MINODE* mip)
     }
   }
 }
+

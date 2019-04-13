@@ -2,9 +2,9 @@
 
 //Globals
 
-char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "quit", NULL};
+char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "quit", "debug_on", "debug_off", NULL};
 int (*fptr[])(char *, char*) = {(int *)ls, (int *)pwd, (int *)cd, (int *)mk_dir, (int *)creat_file, (int *)rm_dir, (int *)rm_file, (int*)mylink, 
-                                 (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int *)quit};
+                                 (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int *)quit, (int *)debug_on, (int *)debug_off};
 
 int findCommand(char *command)
 {
@@ -1213,4 +1213,28 @@ void quit()
 
     printf("Quitting the program\n");
     exit(1);
+}
+
+void debug_on()
+{
+  if(DEBUG) //Debug is already on
+    printf("Debug is already on ya nimwhit\n");
+  else
+  {
+    DEBUG = true;
+    printf("Debug messages will now print\n");
+  }
+  
+}
+
+void debug_off()
+{
+  if(!DEBUG) //Debug is already on
+    printf("Debug is already off ya knucklehead\n");
+  else
+  {
+    DEBUG = false;
+    printf("Debug messages will no longer print\n");
+  }
+  
 }
