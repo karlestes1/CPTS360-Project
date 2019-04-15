@@ -2,11 +2,14 @@
     Level 1:
         ☐ Fix error messages
         ☐ Add color to messages
-        ☐ Add debug mode @started(19-04-11 22:25)
+        ✔ Add debug mode @started(19-04-11 22:25) @done(19-04-12 23:21) @lasted(1d56m45s)
             -Global variable
             -Passed as a paremter when starting the program
                 -After passing disk argument
             -Some functions might turn debug off to run
+        ☐ stat()
+        ☐ chmod()
+        ☐ touch()
 
     Level 2:
         ☐ open()
