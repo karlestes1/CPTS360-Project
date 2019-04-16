@@ -100,6 +100,26 @@ void myreadlink(char* link);
 //Prints the contents of the symlink file with no newline at the end
 void myreadlink_nonewline(char* link);
 
+//Works just as linux touch does
+//Update access and modification time of the provided file
+//If file does not exist, it will create the file
+void my_touch(char* filename);
+
+//Prints out information about a file
+//Prints in the following way
+    //File: 
+    //Size:     Blocks:     IO Block:       $filetype
+    //Device:   Inode:      Links:
+    //Access:   Uid:        Gid:
+    //Access:   $time
+    //Modify:   $time
+    //Change:   $time
+void my_stat(char* filename);
+
+//Changes the file mode bits
+//Accepts ### filename
+void my_chmod(char* mode, char* filename);
+
 //Prints out the menu of all the commands
 void printMenu();
 

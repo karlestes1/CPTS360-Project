@@ -37,7 +37,7 @@ DIR   *dp;
 // Default dir, regular file, and link modes
 #define DIR_MODE      0x41ED 
 #define FILE_MODE     0x81A4
-#define LINK_MODE     0xA000
+#define LINK_MODE     0xA194
 
 #define EXT2_FS       0xEF53    
 

@@ -268,7 +268,7 @@ int getino(char *path)
 
       if (ino==0){
          iput(mip);
-         printf("name %s does not exist\n", name[i]);
+         if(DEBUG){printf("name %s does not exist\n", name[i]);}
          return 0;
       }
       iput(mip);
