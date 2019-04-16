@@ -2,9 +2,10 @@
 
 //Globals
 
-char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "quit", "debug_on", "debug_off", NULL};
+char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "touch", "stat", "chmod", "quit", "debug_on", "debug_off", NULL};
 int (*fptr[])(char *, char*) = {(int *)ls, (int *)pwd, (int *)cd, (int *)mk_dir, (int *)creat_file, (int *)rm_dir, (int *)rm_file, (int*)mylink, 
-                                 (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int *)quit, (int *)debug_on, (int *)debug_off};
+                                (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int*)my_touch, (int*)my_stat, (int*)my_chmod, (int *)quit, 
+                                (int *)debug_on, (int *)debug_off};
 
 int findCommand(char *command)
 {
@@ -447,7 +448,9 @@ void mycreat(MINODE *pip, char* name)
     mip->INODE.i_gid  = running->cwd->INODE.i_gid; // Group Id
     mip->INODE.i_size = 0; // Size in bytes 
     mip->INODE.i_links_count = 1; // Links count=1 because of . 
-    mip->INODE.i_atime = mip->INODE.i_ctime = mip->INODE.i_mtime = time(0L);  // set to current time
+    mip->INODE.i_atime = time(0L);
+    mip->INODE.i_ctime = time(0L);
+    mip->INODE.i_mtime = time(0L);  // set to current time
     mip->INODE.i_blocks = 2; // LINUX: Blocks count in 512-byte chunks   
     for(int i = 0; i < 15; i++)
         mip->INODE.i_block[i] = 0;
@@ -1187,6 +1190,162 @@ void myreadlink_nonewline(char* link)
     printf("%s", mip->INODE.i_block);
 
 }
+
+void my_touch(char* filename)
+{
+    int ino;
+    MINODE* mip;
+    if(filename == NULL || *filename == NULL) //Check if file exists
+    {
+        printf("Please provide a file to touch\n");
+        return;
+    }
+
+    ino = getino(filename); //Search for the inode of provided path
+
+    if(ino == 0) //Could not find along provided path
+        creat_file(filename); //Create the file
+    else 
+    {
+        //Get MINODE
+        mip = iget(running->cwd->dev, ino);
+
+        //Modify access times
+        mip->INODE.i_atime = mip->INODE.i_mtime = time(0L);
+
+        mip->dirty=1;
+        iput(mip);
+    }
+
+    if(DEBUG){printf("touch successfully performed on %s\n",filename);}
+    return;
+
+}
+void my_stat(char* filename)
+{
+    int ino;
+    MINODE* mip;
+    char *t1 = "xwrxwrxwr-------";
+    char *t2 = "----------------";
+    char ftime[64];
+    char permissions[11];
+    int permissionOctal[3], j = 0, count = 1, index = 1;
+    time_t timer;
+
+    memset(permissions, 0, 11);
+    permissionOctal[0] = permissionOctal[1] = permissionOctal[2] = 0;
+
+
+    if(filename == NULL || *filename == NULL) //No provided path
+    {
+        printf("Please provide the name of a file to stat\n");
+        return;
+    }
+
+    ino = getino(filename); //See if file exists
+
+    if(ino == 0) //No file at the path
+    {
+        printf("Invalid path\n");
+        return;
+    }
+
+    mip = iget(running->cwd->dev, ino); //Load Inode into memory
+
+    //Print information about the file
+    printf("  File: %s \n", basename(filename));
+    printf("  Size: %-8d Blocks: %-8d IO Block: %-8d", mip->INODE.i_size, mip->INODE.i_blocks, BLKSIZE);
+
+    if(S_ISDIR(mip->INODE.i_mode))
+        printf("directory\n");
+    else if(S_ISREG(mip->INODE.i_mode))
+        printf("regular file\n");
+    else if(S_ISLNK(mip->INODE.i_mode))
+        printf("symbolic link\n");
+    else
+        printf("unknown type\n");
+    
+
+    printf("Device: %-8d Inode: %-8d Links: %d\n", mip->dev, mip->ino, mip->INODE.i_links_count);
+    printf("Access: ");
+
+     //Print the mode
+    if (S_ISDIR(mip->INODE.i_mode))
+    {       
+        strcpy(permissions, "d");
+    }
+    else if (S_ISREG(mip->INODE.i_mode))
+    {
+        strcpy(permissions, "-");
+    }
+    else if (S_ISLNK(mip->INODE.i_mode))
+    {
+        strcpy(permissions, "l");
+    }
+
+    //Print permissions
+    for (int i = 8; i > 0; i--)
+    {
+        if (mip->INODE.i_mode & (1 << i)) //print r/w/x
+        {
+            permissions[index] = t1[i];
+
+            if(i == 8 || i == 5 || i == 2)
+                permissionOctal[j] += 4;
+            else if (i == 7 || i == 4 || i == 1)
+                permissionOctal[j] += 2;
+            else if (i == 6 || i == 3 || i == 0)
+                permissionOctal[j] += 1;
+        }
+        else
+        {
+            permissions[index] = t2[i];
+        }
+
+        count++;
+        index++;
+
+        if(count > 3)
+        {
+            count = 1;
+            j++;
+        }
+    }
+
+    printf("(0%d%d%d/%s)", permissionOctal[0], permissionOctal[1], permissionOctal[2], permissions);
+    printf(" Uid: %d  Gid: %d\n", mip->INODE.i_uid, mip->INODE.i_gid);
+    
+    memset(ftime, 0, 64);
+    timer = mip->INODE.i_atime;
+    strcpy(ftime, ctime(&timer));
+    ftime[strlen(ftime) - 1] = 0;       // kill \n at end
+
+    printf("Access: %s\n", ftime);
+
+    memset(ftime, 0, 64);
+    timer = mip->INODE.i_mtime;
+    strcpy(ftime, ctime(&timer));
+    ftime[strlen(ftime) - 1] = 0;       // kill \n at end
+
+    printf("Modify: %s\n", ftime);
+
+    memset(ftime, 0, 64);
+    timer = mip->INODE.i_ctime;
+    strcpy(ftime, ctime(&timer));
+    ftime[strlen(ftime) - 1] = 0;       // kill \n at end
+
+    printf("Change: %s\n", ftime);
+
+    iput(mip);
+
+
+}
+
+void my_chmod(char* mode, char* filename)
+{
+
+}
+
 
 void printMenu()
 {
