@@ -7,9 +7,10 @@
             -Passed as a paremter when starting the program
                 -After passing disk argument
             -Some functions might turn debug off to run
-        ☐ stat()
+        ☐ stat() @started(19-04-16 09:43)
         ☐ chmod()
-        ☐ touch()
+        ✔ touch() @done(19-04-16 09:43)
+        ☐ Add new commands to menu
 
     Level 2:
         ☐ open()
