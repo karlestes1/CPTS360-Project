@@ -243,19 +243,19 @@ int getino(char *path)
   INODE *ip;
   MINODE *mip;
 
-  //printf("getino: path=%s\n", path);
+  if(DEBUG){printf("getino: path=%s\n", path);}
   if (strcmp(path, "/")==0)
       return 2;
 
   if (path[0]=='/')
   {
     mip = iget(dev, 2);
-    //printf("Absolute Path\n");
+    if(DEBUG){printf("Absolute Path\n");}
   }
   else
   {
     mip = iget(running->cwd->dev, running->cwd->ino);
-    //printf("Relative Path\n");
+    if(DEBUG){printf("Relative Path\n");}
   }
 
 
@@ -264,7 +264,7 @@ int getino(char *path)
   for (i=0; i<nname; i++){
       //printf("===========================================\n");
       ino = search(mip, name[i]);
-      //printf("Search returned ino:%d\n", ino);
+      if(DEBUG){printf("Search returned ino:%d\n", ino);}
 
       if (ino==0){
          iput(mip);

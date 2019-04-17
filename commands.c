@@ -117,7 +117,7 @@ void ls_file(int ino, char *filename, char* dirname)
         printf("%c", 'l');
 
     //Print permissions
-    for (int i = 8; i > 0; i--)
+    for (int i = 8; i >= 0; i--)
     {
         if (ip->i_mode & (1 << i)) //print r/w/x
             printf("%c", t1[i]);
@@ -214,7 +214,7 @@ void cd(char *path)
 
     iput(running->cwd);
     running->cwd = mip; //Change directory
-    printf("Changed cwd to ");
+    if(DEBUG){printf("Changed cwd to ");}
     pwd();
 }
 
@@ -1284,7 +1284,7 @@ void my_stat(char* filename)
     }
 
     //Print permissions
-    for (int i = 8; i > 0; i--)
+    for (int i = 8; i >= 0; i--)
     {
         if (mip->INODE.i_mode & (1 << i)) //print r/w/x
         {
@@ -1343,7 +1343,107 @@ void my_stat(char* filename)
 
 void my_chmod(char* mode, char* filename)
 {
+    int ino, val;
+    MINODE *mip;
+    bool rd = false, wr = false, ex = false;
 
+
+    if(mode == NULL || *mode == NULL)
+    {
+        printf("Please provide a mode value\n");
+        return;
+    }
+    else if(strlen(mode) < 3 || strlen(mode) > 3 ||
+            mode[0] > '7' || mode[1] > '7' || mode[2] > '7')
+    {
+        printf("mode:%s - Length:%d\n", mode, strlen(mode));
+
+        printf("Please provide a valid mode\n");
+        return;
+    }
+
+    if(filename == NULL || *filename == NULL)
+    {
+        printf("Please provide a path name\n");
+        return;
+    }
+
+    ino = getino(filename);
+
+    if(ino == 0) //Could not find provided file
+    {
+        printf("Please provide a valid filepath\n");
+        return;
+    }
+
+    mip = iget(running->cwd->dev, ino); //Load inode into memory
+
+    //Keep the file mode
+    if(S_ISDIR(mip->INODE.i_mode))
+        mip->INODE.i_mode = __S_IFDIR;
+    else if(S_ISREG(mip->INODE.i_mode))
+        mip->INODE.i_mode = __S_IFREG;
+    else if(S_ISREG(mip->INODE.i_mode))
+        mip->INODE.i_mode = __S_IFLNK;
+    else
+        mip->INODE.i_mode = 0;
+    
+
+    for(int i = 0; i < 3; i++) //Loop through three chmod values
+    {
+        rd = wr = ex = false;
+
+        val = mode[i] - '0'; //Conver mode to int
+
+        //Determine what modes to add
+        if(val >= 4)
+        {
+            val -= 4;
+            rd = true;
+        }
+        if(val >= 2)
+        {
+            val -= 2;
+            wr = true;
+        }
+        if(val >= 1)
+        {
+            val -= 1;
+            ex = true;
+        }
+
+        switch(i)
+        {
+            case 0: //Owner
+                if(rd)
+                    mip->INODE.i_mode += S_IRUSR;
+                if(wr)
+                    mip->INODE.i_mode += S_IWUSR;
+                if(ex)
+                    mip->INODE.i_mode += S_IXUSR;
+                break;
+            case 1: //Group
+                if(rd)
+                    mip->INODE.i_mode += S_IRGRP;
+                if(wr)
+                    mip->INODE.i_mode += S_IWGRP;
+                if(ex)
+                    mip->INODE.i_mode += S_IXGRP;
+                break;
+            case 2: //Others
+                if(rd)
+                    mip->INODE.i_mode += S_IROTH;
+                if(wr)
+                    mip->INODE.i_mode += S_IWOTH;
+                if(ex)
+                    mip->INODE.i_mode += S_IXOTH;
+                break;
+        }
+
+    }
+
+    mip->dirty = 1;
+    iput(mip);
 }
 
 
@@ -1352,6 +1452,7 @@ void printMenu()
     printf("|================== MENU ==================|\n");
     printf("|Level 1: ls, pwd, mkdir, creat, rmdir, rm |\n");
     printf("|         link, symlink, unlink, readlink  |\n");
+    printf("|         stat, touch, chmod               |\n");
     printf("|Level 2: Coming...                        |\n");
     printf("|Level 3: Coming...                        |\n");
     printf("|==========================================|\n");

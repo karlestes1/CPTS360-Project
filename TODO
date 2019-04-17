@@ -8,9 +8,9 @@
                 -After passing disk argument
             -Some functions might turn debug off to run
         ✔ stat() @started(19-04-16 09:43) @done(19-04-16 13:48) @lasted(4h5m18s)
-        ☐ chmod()
+        ✔ chmod() @started(19-04-16 16:00) @done(19-04-16 17:19) @lasted(1h19m13s)
         ✔ touch() @done(19-04-16 09:43)
-        ☐ Add new commands to menu
+        ✔ Add new commands to menu @started(19-04-16 17:19) @done(19-04-16 17:21) @lasted(2m49s)
 
     Level 2:
         ☐ open()

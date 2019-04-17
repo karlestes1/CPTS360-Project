@@ -73,6 +73,8 @@ int main(int argc, char* argv[], char* env[])
 
         index = findCommand(cmd); //Find the command
 
+        if(DEBUG){printf("cmd:%s - arg1:%s - arg2:%s\n", cmd, pathname, pathname2);}
+
         if(index != -1)
             fptr[index](pathname, pathname2); //Run the found command
         else if (strcmp(cmd, "?") == 0)//Check if ? was answered
