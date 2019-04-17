@@ -20,7 +20,7 @@
         ☐ lseek()
         ☐ cat()
         ☐ cp()
-        ☐ touch()
+        ✔ touch() @done(19-04-16 17:23)
         ☐ update printMenu()
 
     Level 3:
