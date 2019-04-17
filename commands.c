@@ -1465,13 +1465,13 @@ void quit()
     {
         if ((minode[i].refCount > 0) && minode[i].dirty)
         {
-            printf("Calling iput() on minode[%d]\n", i);
+            if(DEBUG){printf("Calling iput() on minode[%d]\n", i);}
             minode[i].refCount = 1;
             iput(&minode[i]);
         }
     }
 
-    printf("Quitting the program\n");
+    if(DEBUG){printf("Quitting the program\n");}
     exit(1);
 }
 

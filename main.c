@@ -34,7 +34,7 @@ int main(int argc, char* argv[], char* env[])
         case 1: printf("%sPlease enter a DISKNAME%s\n", YELLOW, NORMAL); exit(3); break;
         case 2: break;
         case 3:
-                if(strcmp("DEBUG", argv[2]) == 0) //DEBUG is turned on
+                if(strcmp("-d", argv[2]) == 0) //DEBUG is turned on
                 {
                     DEBUG = true;
                     printf("DEBUG is set to true\n");
