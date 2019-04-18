@@ -10,7 +10,11 @@ void init()
         proc[i].gid = 0;
         proc[i].status = FREE;
         proc[i].next = NULL;
+        proc[i].parent = NULL;
+        proc[i].child = NULL;
+        proc[i].sibling = NULL;
         proc[i].cwd = NULL;
+        for(int j = 0; j < 16;proc[i].fd[j] = NULL, j++);
     }
 
     //Create P0 and P1
@@ -18,7 +22,10 @@ void init()
     proc[0].pid = 0;
     proc[0].gid = 0;
     proc[0].status = READY;
-    proc[0].next = &proc[1];
+    proc[0].next = NULL;
+    proc[0].child = &proc[1];
+    proc[0].parent = &proc[0];
+    proc[0].sibling = NULL;
     proc[0].cwd = NULL;
 
     proc[1].uid = 0;
@@ -26,6 +33,9 @@ void init()
     proc[1].gid = 0;
     proc[1].status = READY;
     proc[1].next = NULL;
+    proc[1].child = NULL;
+    proc[1].parent = &proc[0];
+    proc[1].sibling = NULL;
     proc[1].cwd = NULL;
 
     //Initialize the minode array
@@ -42,7 +52,7 @@ void init()
     //Initialize global root
     root = NULL;
 
-    printf("Level-1 Data Structure Initialized\n");
+    printf("Processes and Data Structures Initialized\n");
 
 }
 
