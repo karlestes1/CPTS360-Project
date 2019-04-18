@@ -279,6 +279,9 @@ int getino(char *path)
 
 void mytruncate(MINODE* mip)
 {
+  int *pint, *pint2;
+  char lbuf[BLKSIZE];
+
   if(mip != NULL) //Make sure MINODE was passed
   {
     for(int i = 0; i < 12; i++) //Loop through all inodes in MIP (ASSUME 12 DIRECT BLKS)
@@ -287,6 +290,51 @@ void mytruncate(MINODE* mip)
         continue;
 
       bdealloc(mip->dev, mip->INODE.i_block[i]); //Deallocate the iblock
+      mip->INODE.i_block[i] = 0;
+    }
+
+    if(mip->INODE.i_block[12] != 0)
+    {
+      //Handle indirect blocks
+      get_block(mip->dev, mip->INODE.i_block[13], buf);
+
+      pint = (int *)buf;
+
+      while(*pint != 0 && pint < buf + BLKSIZE) //Look through all indirect blocks
+      {
+        bdealloc(mip->dev, *pint);
+        pint++;
+      }
+
+      bdealloc(mip->dev, mip->INODE.i_block[12]);
+      mip->INODE.i_block[12] = 0;
+    }
+
+
+    if(mip->INODE.i_block[13] != 0)
+    {
+      //Handle double indirect blocks
+      get_block(mip->dev, mip->INODE.i_block[14], buf);
+
+      pint = (int *)buf;
+
+      while(*pint != 0 && pint < buf + BLKSIZE) //Loop through double indirect data block
+      {
+        get_block(mip->dev, *pint, lbuf); //Read in each sub data block
+
+        pint2 = (int *)lbuf;
+
+        while(*pint2 != 0 && pint2 < buf + BLKSIZE) //Deallocate all sub blocks
+        {
+          bdealloc(mip->dev, *pint2);
+          pint2++;
+        }
+
+        pint++;
+      }
+
+      bdealloc(mip->dev, mip->INODE.i_block[13]);
+      mip->INODE.i_block[13] = 0;
     }
   }
 }
