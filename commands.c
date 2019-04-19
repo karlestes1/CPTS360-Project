@@ -3,10 +3,11 @@
 //Globals
 
 char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "touch", "stat", "chmod", "open", "close", 
-                "lseek", "pfd", "read", "cat", "quit", "debug_on", "debug_off", NULL};
-int (*fptr[])(char *, char*) = {(int *)ls, (int *)pwd, (int *)cd, (int *)mk_dir, (int *)creat_file, (int *)rm_dir, (int *)rm_file, (int*)mylink, 
+                "lseek", "pfd", "read", "cat", "write", "quit", "debug_on", "debug_off", NULL};
+int (*fptr[])(char*, char*) = {(int *)ls, (int *)pwd, (int *)cd, (int *)mk_dir, (int *)creat_file, (int *)rm_dir, (int *)rm_file, (int*)mylink, 
                                 (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int*)my_touch, (int*)my_stat, (int*)my_chmod, (int *)my_open, 
-                                (int *)my_close, (int *)my_lseek, (int *)pfd, (int *)my_read, (int *)my_cat, (int *)quit, (int *)debug_on, (int *)debug_off};
+                                (int *)my_close, (int *)my_lseek, (int *)pfd, (int *)my_read, (int *)my_cat, (int *)my_write, (int *)quit, 
+                                (int *)debug_on, (int *)debug_off};
 
 int findCommand(char *command)
 {
@@ -1764,7 +1765,7 @@ void my_read(char* fileDescriptor, char* numBytes)
 
     if(fd < 0 || fd >= NFD) //file descriptor out of range
     {
-        printf("File descriptor is out of range\n");
+        printf("File descriptor %d is out of range\n", fd);
         return;
     }
 
@@ -1803,7 +1804,7 @@ void my_read(char* fileDescriptor, char* numBytes)
 
 int readFile(int fd, char *lbuf, int numBytes)
 {
-    int blk, start, remain, avaliable, *rBlk;
+    int blk, start, remain, avaliable, *prBlk, rBlk;
     int diblk, diblkpos, count = 0;
     OFT *oftp = running->fd[fd];
     char mybuf[BLKSIZE], *cp, *cpto = lbuf;
@@ -1823,16 +1824,23 @@ int readFile(int fd, char *lbuf, int numBytes)
         start = oftp->offset % BLKSIZE; //Where in that data block to read in from
         remain = BLKSIZE - start; //How many bytes left in the data block
 
+        if(avaliable < remain)
+            remain = avaliable;
+
+        if(DEBUG){printf("blk=%d, start=%d, remain=%d\n", blk, start, remain);}
+
         //Get the block to read from
         if(blk < 12) //Direct Block
         {
-            *rBlk = oftp->mptr->INODE.i_block[blk];
+            rBlk = oftp->mptr->INODE.i_block[blk];
         }
-        else if (blk >= 12 && blk < 256 + 12)
+        else if (blk >= 12 && blk < 256 + 12) //Indirect block
         {
             get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[12], mybuf); //Read in indirect data block
             blk -= 12; //Decrement block to account for first 12 blks
-            rBlk = (int *)buf + blk; //Set rBlk to indirect block number
+            prBlk = (int *)buf + blk; //Set rBlk to indirect block number
+
+            rBlk = *prBlk;
         }
         else //Double indirect block
         {
@@ -1842,16 +1850,18 @@ int readFile(int fd, char *lbuf, int numBytes)
             diblk = blk / 256; //What int of the first double indirect
             diblkpos = blk % 256; //What int in the second double indirect
 
-            rBlk = (int *)mybuf + diblk;
+            prBlk = (int *)mybuf + diblk;
 
-            get_block(oftp->mptr->dev, *rBlk, mybuf);
+            get_block(oftp->mptr->dev, *prBlk, mybuf);
 
-            rBlk = (int *)mybuf + diblkpos;
+            prBlk = (int *)mybuf + diblkpos;
+
+            rBlk = *prBlk;
 
         }
 
         //Read in the data block to local buffer
-        get_block(oftp->mptr->dev, *rBlk, mybuf);
+        get_block(oftp->mptr->dev, rBlk, mybuf);
 
         cp = (char *)mybuf + start;
 
@@ -1871,6 +1881,7 @@ int readFile(int fd, char *lbuf, int numBytes)
             numBytes -= remain; //Reduce number of bytes left by what was read
             avaliable -= remain; //Reduce abliable number of bytes by what was read in
             count += remain;
+            cp = (char*)cp + remain;
         }
     }
 
@@ -1901,18 +1912,213 @@ void my_cat(char* filename)
     {
         //Print to stdout
         if(DEBUG){printf("Copying %d bytes to stdout\n", n);}
-        memcpy(stdout, mybuf, n);
-        fflush(stdout);
-        //dummy = mybuf[n];
-        //mybuf[n] = 0;
+        dummy = mybuf[n];
+        mybuf[n] = 0;
 
-        printf("%s\n", mybuf);
-        
+        fputs(mybuf, stdout);
+        fputc(dummy, stdout);
     }
 
     if(DEBUG){printf("Converting fd %d to string\n", fd);}
     sprintf(fdbuf, "%d", fd);
     my_close(fdbuf);
+
+}
+
+void my_write(char* fileDescriptor)
+{
+    int fd;
+    char mybuf[BLKSIZE];
+
+    if(checkArg(fileDescriptor))
+    {
+        printf("Please provide a file descriptor to write to\n");
+        return;
+    }
+
+    fd = atoi(fileDescriptor); //Convert argument to int
+
+    if(fd < 0 || fd >= NFD) //Check if file descriptor is out of range
+    {
+        printf("File descriptor %d is out of range\n", fd);
+        return;
+    }
+
+    printf("Please enter a string to write to the file (No more than 1024 Characters): ");
+    fgets(mybuf, BLKSIZE, stdin);
+
+    writeFile(fd, mybuf, strlen(mybuf));
+
+
+}
+
+int writeFile(int fd, char lbuf[], int numBytes)
+{
+    if(DEBUG){printf("===== writeFile(int fd=%d, char lbuf[], int numBytes=%d =====\n", fd, numBytes);}
+
+    int blk, start, remain;
+    int diblk, diblkpos, count = 0;
+    OFT *oftp = running->fd[fd];
+    char mybuf[BLKSIZE], *cpto, *cpfrom = lbuf;
+    int *pwBlk, *pwBlk2, wBlk;
+
+
+    if(oftp->mode == 0) //Can't write in Read mode
+    {
+        printf("File descripter is not in a write compatable mode\n");
+        return -1;
+    }
+
+    if(DEBUG){printf("Writing %d bytes to file descriptor %d\n", numBytes, fd);}
+
+    while(numBytes > 0) //Loop while still bytes to write
+    {
+        blk = oftp->offset / BLKSIZE; //What blk to write to
+        start = oftp->offset % BLKSIZE; //Where in the blk to start writing
+        remain = BLKSIZE - start; //How many bytes left in data block
+
+
+        if(blk < 12) //Indirect blocks
+        {
+            if(oftp->mptr->INODE.i_block[blk] == 0) //No data block allocated
+            {
+                oftp->mptr->INODE.i_block[blk] = balloc(oftp->mptr->dev); //Allocate new disk block
+                if(DEBUG){printf("Allocated new direct blk at INODE.i_block[%d]\n", blk);}
+
+                //Zero out the blk on the disk
+                get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[blk], mybuf);
+                memset(mybuf, 0, BLKSIZE);
+                put_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[blk], mybuf);
+            }
+            wBlk = oftp->mptr->INODE.i_block[blk];
+            if(DEBUG){printf("wBlk=%d\n", wBlk);}
+        }
+        else if(blk >= 12 && blk < 256 + 12) //Indirect block
+        {
+            if(oftp->mptr->INODE.i_block[12] == 0) //No indirect block allocated
+            {
+                oftp->mptr->INODE.i_block[12] = balloc(oftp->mptr->dev);
+                if(DEBUG){printf("Allocated new indirect blk at INODE.i_block[12]\n");}
+
+                //Zero out the blk on the disk
+                get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[12], mybuf);
+                memset(mybuf, 0, BLKSIZE);
+                put_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[12], mybuf);
+            }
+
+            get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[12], mybuf); //Get the indirect block
+            pwBlk = (int *)mybuf + blk - 12; //Figure out where to look for indirect
+
+            if(*pwBlk == 0) //No block allocated
+            {
+                *pwBlk = balloc(oftp->mptr->dev); //Allocate new disk block
+                put_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[12], mybuf); //Record newly allocated block in INODE
+
+                if(DEBUG){printf("Allocated new indirect blk %d in INODE.i_block[12]\n", *pwBlk);}
+
+                //Zero out newly allocated block
+                get_block(oftp->mptr->dev, *pwBlk, mybuf);
+                memset(mybuf, 0, BLKSIZE);
+                put_block(oftp->mptr->dev, *pwBlk, mybuf);
+            }
+
+            wBlk = *pwBlk;
+
+            if(DEBUG){printf("wBlk=%d\n", wBlk);}
+        }
+        else //Double indirect blocks
+        {
+            if(oftp->mptr->INODE.i_block[13] == 0) //No double indirect allocated
+            {
+                get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf);
+                memset(mybuf, 0, BLKSIZE);
+                put_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf);
+
+                if(DEBUG){printf("Allocated new double indirect blk at INODE.i_block[13]\n");}
+
+            }
+
+            get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf); //Get first double indirect
+            blk -= 256 + 12; //Decrement blk to account for first 12 + 256 blks
+
+            diblk = blk / 256; //What int of the first double indirect
+            diblkpos = blk % 256; //What int in the second double indirect
+
+            pwBlk = (int *)mybuf + diblk;
+
+            if(*pwBlk == 0) //No block allocated at that position
+            {
+                *pwBlk = balloc(oftp->mptr->dev); //Allocate new disk block
+                put_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf); //Write parent blk back
+
+                if(DEBUG){printf("Allocated new double indirect blk %d in INODE.i_block[13]\n", *pwBlk);}
+
+                //Zero out newly allocated block
+                get_block(oftp->mptr->dev, *pwBlk, mybuf);
+                memset(mybuf, 0, BLKSIZE);
+                put_block(oftp->mptr->dev, *pwBlk, mybuf);
+            }
+
+            get_block(oftp->mptr->dev, *pwBlk, mybuf); //Get second double indirect
+
+            pwBlk2 = (int *)mybuf + diblkpos;
+
+            if(*pwBlk2 == 0) //No block allocated at this position
+            {
+                *pwBlk2 = balloc(oftp->mptr->dev); //Allocate new disk block
+                put_block(oftp->mptr->dev, *pwBlk, mybuf); //Write parent blk back
+
+                if(DEBUG){printf("Allocated new double indirect blk %d in blk %d in INODE.i_block[13]\n", *pwBlk2, *pwBlk);}
+
+                //Zero out newly allocated block
+                get_block(oftp->mptr->dev, *pwBlk2, mybuf);
+                memset(mybuf, 0, BLKSIZE);
+                put_block(oftp->mptr->dev, *pwBlk2, mybuf);
+            }
+
+            wBlk = *pwBlk2;
+
+            if(DEBUG){printf("wBlk=%d\n", wBlk);}
+
+        }
+
+        if(DEBUG){printf("Getting block %d from disk to write to\n", wBlk);}
+        get_block(oftp->mptr->dev, wBlk, mybuf); //Get the block to write to
+
+        cpto = (char *)mybuf + start;
+
+        if(DEBUG){printf("Attempting copy with numBytes=%d and remain=%d\n", numBytes, remain);}
+        if(numBytes <= remain) //Less bytes to copy than that remaining in block
+        {
+            memcpy(cpto, cpfrom, numBytes); //Copy memory
+            if(DEBUG){printf("Copy Performed Successfully\n");}
+
+            oftp->offset += numBytes; //Change offset to where write ended
+            count += numBytes;
+            numBytes = 0;
+        }
+        else //More bytes to write than remaining in disk block
+        {
+            memcpy(cpto, cpfrom, remain); //Copy memory
+            if(DEBUG){printf("Copy Performed Successfully\n");}
+
+            oftp->offset += remain; //Change offset to where write ended
+            numBytes -= remain; //Reduce the number of bytes left to copy by what was written
+            count += remain;
+            cpfrom = (char *)cpfrom + remain;
+        }
+
+        if(oftp->offset > oftp->mptr->INODE.i_size) //Update filesize if offset is greater
+            oftp->mptr->INODE.i_size = oftp->offset;
+
+        if(DEBUG){printf("Writing block %d back to disk\n", wBlk);}
+        put_block(oftp->mptr->dev, wBlk, mybuf); //Write block back to disk
+    }
+
+    //Mark inode dirty
+    oftp->mptr->dirty = 1;
+    printf("Wrote %d bytes into file descriptor fd=%d\n", count, fd);
+    return count;
 
 }
 
