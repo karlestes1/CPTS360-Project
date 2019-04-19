@@ -137,6 +137,17 @@ int my_lseek(char* fileDescriptor, char* position);
 //Prints all currently open file descriptors, as well as mode, offset, and INODE
 void pfd();
 
+//Reads a specified number of bytes from the provided file descriptor
+//Calls readFile() to do the actual reading
+//Will break the reading down into calls of sizes no greater than BLKSIZE
+void my_read(char* fileDescriptor, char* numBytes);
+
+//Actually reads in the specified number of bytes into the file
+void readFile(int fd, char *lbuf, int numBytes);
+
+//Acts just as linux cat does
+void my_cat(char* filename);
+
 //Quit the program
 //iput() on all minodes with (refCount > 0 && DIRTY);
 void quit();

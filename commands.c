@@ -2,10 +2,11 @@
 
 //Globals
 
-char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "touch", "stat", "chmod", "open", "close", "lseek", "pfd", "quit", "debug_on", "debug_off", NULL};
+char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "touch", "stat", "chmod", "open", "close", 
+                "lseek", "pfd", "read", "cat", "quit", "debug_on", "debug_off", NULL};
 int (*fptr[])(char *, char*) = {(int *)ls, (int *)pwd, (int *)cd, (int *)mk_dir, (int *)creat_file, (int *)rm_dir, (int *)rm_file, (int*)mylink, 
                                 (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int*)my_touch, (int*)my_stat, (int*)my_chmod, (int *)my_open, 
-                                (int *)my_close, (int *)my_lseek, (int *) pfd, (int *)quit, (int *)debug_on, (int *)debug_off};
+                                (int *)my_close, (int *)my_lseek, (int *) pfd, (int *) my_read, (int *)my_cat, (int *)quit, (int *)debug_on, (int *)debug_off};
 
 int findCommand(char *command)
 {
@@ -1743,7 +1744,143 @@ void pfd()
     }
 }
 
+void my_read(char* fileDescriptor, char* numBytes)
+{
+    int fd, nbytes, avail;
 
+    if(checkArg(fileDescriptor))
+    {
+        printf("Please provide a file descriptor to read from\n");
+        return;
+    }
+    else if(checkArg(numBytes))
+    {
+        printf("Please provide the number of bytes to read in\n");
+    }
+
+    //Convert arguments to int
+    fd = atoi(fileDescriptor);
+    nbytes = atoi(numBytes);
+
+    if(fd < 0 || fd >= NFD) //file descriptor out of range
+    {
+        printf("File descriptor is out of range\n");
+        return;
+    }
+
+    if(nbytes < 0) //Cant read negative bytes
+    {
+        printf("Cannot read in negative bytes\n");
+        return;
+    }
+
+    if(running->fd[fd] == NULL) //File descriptor not allocated
+    {
+        printf("The file descriptor %d is not allocated on proc[%d]", fd, running->pid);
+        return;
+    }
+
+    //Get the avaliable bytes left in the file
+    avail = running->fd[fd]->mptr->INODE.i_size - running->fd[fd]->offset;
+    
+    if(nbytes > avail)
+    {
+        printf("File only has %d avaliable bytes. Reading in remainder of file\n", avail);
+        nbytes = avail;
+    }
+
+    while(nbytes > 0) //Loop until all bytes have been read
+    {
+        if(nbytes > BLKSIZE)
+            readFile(fd, buf, BLKSIZE);
+        else
+            readFile(fd, buf, nbytes);
+
+        nbytes -= BLKSIZE;
+    }
+
+}
+
+void readFile(int fd, char *lbuf, int numBytes)
+{
+    int blk, start, remain, avaliable, *rBlk;
+    int diblk, diblkpos, count = 0;
+    OFT *oftp = running->fd[fd];
+    char mybuf[BLKSIZE], *cp, *cpto = lbuf;
+
+    if(running->fd[fd]->mode != 0) //Not open for read
+    {
+        printf("File descriptor %d is not in READ mode\n", fd);
+        return -1;
+    }
+
+    avaliable = oftp->mptr->INODE.i_size - oftp->offset; //How many bytes are left in the file
+
+    while(numBytes > 0 && avaliable > 0) //Loop while still byte to read or bytes to read
+    {
+        blk = oftp->offset / BLKSIZE; //What data block to read in from
+        start = oftp->offset % BLKSIZE; //Where in that data block to read in from
+        remain = BLKSIZE - start; //How many bytes left in the data block
+
+        //Get the block to read from
+        if(blk < 12) //Direct Block
+        {
+            *rBlk = oftp->mptr->INODE.i_block[blk];
+        }
+        else if (blk >= 12 && blk < 256 + 12)
+        {
+            get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[12], mybuf); //Read in indirect data block
+            blk -= 12; //Decrement block to account for first 12 blks
+            rBlk = (int *)buf + blk; //Set rBlk to indirect block number
+        }
+        else //Double indirect block
+        {
+            get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf);
+            blk -= 256 + 12; //Decrement blk to account for first 12 + 256 blks
+
+            diblk = blk / 256; //What int of the first double indirect
+            diblkpos = blk % 256; //What int in the second double indirect
+
+            rBlk = (int *)mybuf + diblk;
+
+            get_block(oftp->mptr->dev, *rBlk, mybuf);
+
+            rBlk = (int *)mybuf + diblkpos;
+
+        }
+
+        //Read in the data block to local buffer
+        get_block(oftp->mptr->dev, *rBlk, mybuf);
+
+        cp = (char *)mybuf + start;
+
+        if(numBytes <= remain) //Less bytes to copy than that remaining
+        {
+            memcpy(cpto, cp, numBytes); //Copy memory
+
+            oftp->offset += numBytes; //Change offset to where read ended
+            count += numBytes;
+            numBytes = 0;
+        }
+        else //More bytes to copy than remaining
+        {
+            memcpy(cpto, cp, remain); //Copy memory
+
+            oftp->offset += remain; //Change offset to where read ended
+            numBytes -= remain; //Reduce number of bytes left by what was read
+            avaliable -= remain; //Reduce abliable number of bytes by what was read in
+            count += remain;
+        }
+    }
+
+    printf("Read in %d bytes from file descriptor %d\n", count, fd);
+    return count;
+}
+
+void my_cat(char* filename)
+{
+
+}
 
 void quit()
 {

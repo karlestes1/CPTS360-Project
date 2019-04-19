@@ -13,15 +13,15 @@
         ✔ Add new commands to menu @started(19-04-16 17:19) @done(19-04-16 17:21) @lasted(2m49s)
 
     Level 2:
-        ✔ open() @critical @today @started(19-04-18 11:31) @done(19-04-18 15:39) @lasted(4h8m57s)
-        ✔ close() @critical @today @started(19-04-18 15:39) @done(19-04-18 18:46) @lasted(3h7m19s)
-        ☐ read() @critical
+        ✔ open() @started(19-04-18 11:31) @done(19-04-18 15:39) @lasted(4h8m57s)
+        ✔ close() @started(19-04-18 15:39) @done(19-04-18 18:46) @lasted(3h7m19s)
+        ✔ read() @started(19-04-18 20:37) @done(19-04-18 21:45) @lasted(1h8m3s)
         ☐ write() @critical 
-        ☐ lseek() @critical @started(19-04-18 20:17)
-        ☐ cat() @critical 
+        ✔ lseek() @started(19-04-18 20:17) @done(19-04-18 20:35) @lasted(18m15s)
+        ☐ cat() @critical @started(19-04-18 21:50)
         ☐ cp() @critical 
         ☐ mv() @critical 
-        ✔ pfd() @critical @today @done(19-04-18 18:46)
+        ✔ pfd() @done(19-04-18 18:46)
         ✔ touch() @done(19-04-16 17:23)
         ☐ update printMenu() @low 
         ✔ dup @done(19-04-18 19:10)
