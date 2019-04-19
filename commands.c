@@ -2,9 +2,12 @@
 
 //Globals
 
-char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "quit", "debug_on", "debug_off", NULL};
-int (*fptr[])(char *, char*) = {(int *)ls, (int *)pwd, (int *)cd, (int *)mk_dir, (int *)creat_file, (int *)rm_dir, (int *)rm_file, (int*)mylink, 
-                                 (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int *)quit, (int *)debug_on, (int *)debug_off};
+char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "touch", "stat", "chmod", "open", "close", 
+                "lseek", "pfd", "read", "cat", "write", "cp", "mv", "quit", "debug_on", "debug_off", NULL};
+int (*fptr[])(char*, char*) = {(int *)ls, (int *)pwd, (int *)cd, (int *)mk_dir, (int *)creat_file, (int *)rm_dir, (int *)rm_file, (int*)mylink, 
+                                (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int*)my_touch, (int*)my_stat, (int*)my_chmod, (int *)my_open, 
+                                (int *)my_close, (int *)my_lseek, (int *)pfd, (int *)my_read, (int *)my_cat, (int *)my_write, (int *)my_cp,
+                                (int *)my_mv, (int *)quit, (int *)debug_on, (int *)debug_off};
 
 int findCommand(char *command)
 {
@@ -116,7 +119,7 @@ void ls_file(int ino, char *filename, char* dirname)
         printf("%c", 'l');
 
     //Print permissions
-    for (int i = 8; i > 0; i--)
+    for (int i = 8; i >= 0; i--)
     {
         if (ip->i_mode & (1 << i)) //print r/w/x
             printf("%c", t1[i]);
@@ -213,7 +216,7 @@ void cd(char *path)
 
     iput(running->cwd);
     running->cwd = mip; //Change directory
-    printf("Changed cwd to ");
+    if(DEBUG){printf("Changed cwd to ");}
     pwd();
 }
 
@@ -296,7 +299,7 @@ void mk_dir(char* path)
     int pino; //Keeps track of parent inode
     MINODE* pip; //Keeps track of parents info
 
-    if(path[0] == NULL)
+    if(checkArg(path))
     {
         printf("Please provide a name for the new directory\n");
         return;
@@ -386,38 +389,45 @@ void mymkdir(MINODE* pip, char* name)
 
 }
 
-void creat_file(char *path)
+bool creat_file(char *path)
 {
+    if(DEBUG){printf("\n===== create_file(char* path=%s =====\n", path);}
     char * newFile = basename(path); //Name of new direc to be created
     char* parents=dirname(path); //Path of all parent directories
     int pino; //Keeps track of parent inode
     MINODE* pip; //Keeps track of parents info
 
-    if(path[0] == NULL)
+    if(checkArg(path))
     {
         printf("Please provide a name for the new file\n");
-        return;
+        return false;
     }
 
     pino = getino(parents); //Search path of all parent directories
 
     if(pino == 0) //Specified path failed
-        return;
+        return false;
 
-    pip = iget(dev, pino); //Get the minode for searched ino number
+    if(DEBUG){printf("Creat_File: parent inode = %d\n", pino);}
+
+    pip = iget(running->cwd->dev, pino); //Get the minode for searched ino number
+
+    if(DEBUG){printf("Creat_File: loaded MINODE with inode = %d\n", pip->ino);}
     
     if(!S_ISDIR(pip->INODE.i_mode)) //Check if the found parent is a directory
     {
         printf("Error: %s is not a directory\n", basename(parents));
         iput(pip);
-        return;
+        return false;
     }
+
+    if(DEBUG){printf("Create_File: Found parent was a directory\n", pino);}
 
     if(search(pip, newFile) != 0) //A dir with that name already exists
     {
         printf("A file with the name %s already exists\n", newFile);
         iput(pip);
-        return;
+        return false;
     }
 
     mycreat(pip, newFile); //Actually create the new directory
@@ -429,16 +439,19 @@ void creat_file(char *path)
     pip->dirty = 1;
 
     iput(pip);
+
+    return true;
 }
 
 void mycreat(MINODE *pip, char* name)
 {
+    if(DEBUG){printf("\n===== mycreat(MINODE *pip[%d, %d], char* name=%s =====\n",pip->dev, pip->ino, name);}
     int newino, newbno; //Keeps track of new allocated ino and bno
     MINODE *mip;
 
     newino = ialloc(pip->dev); //Allocate new ino in imap
 
-    //printf("Allocated ino=%d and bno=%d\n", newino, newbno);
+    if(DEBUG){printf("Allocated ino=%d and bno=%d\n", newino, newbno);}
 
     mip = iget(pip->dev, newino); //Load the inode into an MINODE
 
@@ -447,7 +460,9 @@ void mycreat(MINODE *pip, char* name)
     mip->INODE.i_gid  = running->cwd->INODE.i_gid; // Group Id
     mip->INODE.i_size = 0; // Size in bytes 
     mip->INODE.i_links_count = 1; // Links count=1 because of . 
-    mip->INODE.i_atime = mip->INODE.i_ctime = mip->INODE.i_mtime = time(0L);  // set to current time
+    mip->INODE.i_atime = time(0L);
+    mip->INODE.i_ctime = time(0L);
+    mip->INODE.i_mtime = time(0L);  // set to current time
     mip->INODE.i_blocks = 2; // LINUX: Blocks count in 512-byte chunks   
     for(int i = 0; i < 15; i++)
         mip->INODE.i_block[i] = 0;
@@ -578,7 +593,7 @@ void rm_dir(char* path)
     //printf("In rmdir\n");
     MINODE *mip = NULL;
 
-    if(*path == NULL) //No path was provided
+    if(checkArg(path)) //No path was provided
     {
         printf("Please provide a directory to delete\n");
         return;
@@ -803,7 +818,7 @@ void rm_file(char* path)
     //printf("In rmdir\n");
     MINODE *mip = NULL;
 
-    if(*path == NULL) //No path was provided
+    if(checkArg(path)) //No path was provided
     {
         printf("Please provide a file to delete\n");
         return;
@@ -892,7 +907,7 @@ void myrm(MINODE *mip, char *path)
     iput(pip);
 }
 
-void mylink(char* oldname, char* newname)
+bool mylink(char* oldname, char* newname)
 {
     //printf("\n\n In mylink()\n\n");
     int ino;
@@ -902,15 +917,15 @@ void mylink(char* oldname, char* newname)
     memset(parents, 0, 256);
     memset(newlink, 0, 256);
 
-    if(oldname == NULL || *oldname == NULL) //No name provided
+    if(checkArg(oldname)) //No name provided
     {
         printf("Please provided a file to link\n");
-        return;
+        return false;
     }
-    else if(newname == NULL || *newname == NULL)
+    else if(checkArg(newname))
     {
         printf("Please provided a name for the new file\n");
-        return;
+        return false;
     }
 
     //printf("oldname:%s\nnewname:%s\n", oldname, newname);
@@ -929,7 +944,7 @@ void mylink(char* oldname, char* newname)
     if(ino == 0) //Invalid path
     {
         printf("Invalid path to file to link to\n");
-        return;
+        return false;
     }
 
     mip = iget(running->cwd->dev, ino); //Get MINODE of file to create link from
@@ -939,7 +954,7 @@ void mylink(char* oldname, char* newname)
     {
         printf("You cannot create a link to a directory\n");
         iput(mip);
-        return;
+        return false;
     }
 
     ino = getino(parents); //Get the ino number of the parent path for new file
@@ -949,7 +964,7 @@ void mylink(char* oldname, char* newname)
     {
         printf("Invalid path to directory in which to place new link\n");
         iput(mip);
-        return;
+        return false;
     }
 
     pip = iget(mip->dev, ino); //Get the MINODE of the directory in which to palce new file
@@ -960,7 +975,7 @@ void mylink(char* oldname, char* newname)
         printf("You can only add files to a directory\n");
         iput(mip);
         iput(pip);
-        return;
+        return false;
     }
 
     ino = search(pip, newlink); //Search to see if file by same name already exists in parent dir
@@ -971,6 +986,7 @@ void mylink(char* oldname, char* newname)
         if(strcmp(parents, ".") == 0)
             strcpy(parents, "/");
         printf("A file by the name %s already exists in %s\n", newlink, parents);
+        return false;
     }
 
 
@@ -985,12 +1001,12 @@ void mylink(char* oldname, char* newname)
     iput(mip);
     iput(pip);
 
-    return;
+    return true;
 
     
 }
 
-void myunlink(char* pathname)
+bool myunlink(char* pathname)
 {
     int pino, ino;
     MINODE *mip, *pip;
@@ -1000,10 +1016,10 @@ void myunlink(char* pathname)
     memset(child, 0, 256);
     memset(parents, 0, 256);
 
-    if(pathname == NULL || *pathname == NULL) //No file path was provided
+    if(checkArg(pathname)) //No file path was provided
     {
         printf("You need to tell me what file to unlink\n");
-        return;
+        return false;
     }
 
     strcpy(child, basename(pathname));
@@ -1014,7 +1030,7 @@ void myunlink(char* pathname)
     if(ino == 0) //The specified file/path does not exist
     {
         printf("Invalid Path\n");
-        return;
+        return false;
     }
 
     pip = iget(running->cwd->dev, pino); //Load the MINODE for the corresponding INODE
@@ -1025,7 +1041,7 @@ void myunlink(char* pathname)
     {
         printf("Invalid Path\n");
         iput(pip);
-        return;
+        return false;
     }
 
     mip = iget(pip->dev, ino);
@@ -1035,7 +1051,7 @@ void myunlink(char* pathname)
         printf("Cannot unlink a directory\n");
         iput(pip);
         iput(mip);
-        return;
+        return false;
     }
 
     //printf("mip old link counts: %d\n", mip->INODE.i_links_count);
@@ -1056,6 +1072,8 @@ void myunlink(char* pathname)
 
     iput(mip);
     iput(pip);
+
+    return true;
 }
 
 void mysymlink(char* oldname, char* newname)
@@ -1068,13 +1086,13 @@ void mysymlink(char* oldname, char* newname)
     memset(newlink, 0, 256);
 
     //Check to make sure arguments were provided
-    if(oldname == NULL || *oldname == NULL)
+    if(checkArg(oldname))
     {
         printf("Please provide a filename to link from\n");
         return;
     }
 
-    if(newname == NULL || *newname == NULL)
+    if(checkArg(newname))
     {
         printf("Please provide a filename to link to\n");
         return;
@@ -1130,7 +1148,7 @@ void myreadlink(char* link)
     int ino;
     MINODE *mip;
 
-    if(link == NULL || *link == NULL)
+    if(checkArg(link))
     {
         printf("Please provide a pathname to a link to read\n");
         return;
@@ -1161,7 +1179,7 @@ void myreadlink_nonewline(char* link)
     int ino;
     MINODE *mip;
 
-    if(link == NULL || *link == NULL)
+    if(checkArg(link))
     {
         printf("Please provide a pathname to a link to read\n");
         return;
@@ -1188,14 +1206,1096 @@ void myreadlink_nonewline(char* link)
 
 }
 
+void my_touch(char* filename)
+{
+    int ino;
+    MINODE* mip;
+    if(checkArg(filename)) //Check if file exists
+    {
+        printf("Please provide a file to touch\n");
+        return;
+    }
+
+    ino = getino(filename); //Search for the inode of provided path
+
+    if(ino == 0) //Could not find along provided path
+        creat_file(filename); //Create the file
+    else 
+    {
+        //Get MINODE
+        mip = iget(running->cwd->dev, ino);
+
+        //Modify access times
+        mip->INODE.i_atime = mip->INODE.i_mtime = time(0L);
+
+        mip->dirty=1;
+        iput(mip);
+    }
+
+    if(DEBUG){printf("touch successfully performed on %s\n",filename);}
+    return;
+
+}
+void my_stat(char* filename)
+{
+    int ino;
+    MINODE* mip;
+    char *t1 = "xwrxwrxwr-------";
+    char *t2 = "----------------";
+    char ftime[64];
+    char permissions[11];
+    int permissionOctal[3], j = 0, count = 1, index = 1;
+    time_t timer;
+
+    memset(permissions, 0, 11);
+    permissionOctal[0] = permissionOctal[1] = permissionOctal[2] = 0;
+
+
+    if(checkArg(filename)) //No provided path
+    {
+        printf("Please provide the name of a file to stat\n");
+        return;
+    }
+
+    ino = getino(filename); //See if file exists
+
+    if(ino == 0) //No file at the path
+    {
+        printf("Invalid path\n");
+        return;
+    }
+
+    mip = iget(running->cwd->dev, ino); //Load Inode into memory
+
+    //Print information about the file
+    printf("  File: %s \n", basename(filename));
+    printf("  Size: %-8d Blocks: %-8d IO Block: %-8d", mip->INODE.i_size, mip->INODE.i_blocks, BLKSIZE);
+
+    if(S_ISDIR(mip->INODE.i_mode))
+        printf("directory\n");
+    else if(S_ISREG(mip->INODE.i_mode))
+        printf("regular file\n");
+    else if(S_ISLNK(mip->INODE.i_mode))
+        printf("symbolic link\n");
+    else
+        printf("unknown type\n");
+    
+
+    printf("Device: %-8d Inode: %-8d Links: %d\n", mip->dev, mip->ino, mip->INODE.i_links_count);
+    printf("Access: ");
+
+     //Print the mode
+    if (S_ISDIR(mip->INODE.i_mode))
+    {       
+        strcpy(permissions, "d");
+    }
+    else if (S_ISREG(mip->INODE.i_mode))
+    {
+        strcpy(permissions, "-");
+    }
+    else if (S_ISLNK(mip->INODE.i_mode))
+    {
+        strcpy(permissions, "l");
+    }
+
+    //Print permissions
+    for (int i = 8; i >= 0; i--)
+    {
+        if (mip->INODE.i_mode & (1 << i)) //print r/w/x
+        {
+            permissions[index] = t1[i];
+
+            if(i == 8 || i == 5 || i == 2)
+                permissionOctal[j] += 4;
+            else if (i == 7 || i == 4 || i == 1)
+                permissionOctal[j] += 2;
+            else if (i == 6 || i == 3 || i == 0)
+                permissionOctal[j] += 1;
+        }
+        else
+        {
+            permissions[index] = t2[i];
+        }
+
+        count++;
+        index++;
+
+        if(count > 3)
+        {
+            count = 1;
+            j++;
+        }
+    }
+
+    printf("(0%d%d%d/%s)", permissionOctal[0], permissionOctal[1], permissionOctal[2], permissions);
+    printf(" Uid: %d  Gid: %d\n", mip->INODE.i_uid, mip->INODE.i_gid);
+    
+    memset(ftime, 0, 64);
+    timer = mip->INODE.i_atime;
+    strcpy(ftime, ctime(&timer));
+    ftime[strlen(ftime) - 1] = 0;       // kill \n at end
+
+    printf("Access: %s\n", ftime);
+
+    memset(ftime, 0, 64);
+    timer = mip->INODE.i_mtime;
+    strcpy(ftime, ctime(&timer));
+    ftime[strlen(ftime) - 1] = 0;       // kill \n at end
+
+    printf("Modify: %s\n", ftime);
+
+    memset(ftime, 0, 64);
+    timer = mip->INODE.i_ctime;
+    strcpy(ftime, ctime(&timer));
+    ftime[strlen(ftime) - 1] = 0;       // kill \n at end
+
+    printf("Change: %s\n", ftime);
+
+    iput(mip);
+
+
+}
+
+void my_chmod(char* mode, char* filename)
+{
+    int ino, val;
+    MINODE *mip;
+    bool rd = false, wr = false, ex = false;
+
+
+    if(checkArg(mode))
+    {
+        printf("Please provide a mode value\n");
+        return;
+    }
+    else if(strlen(mode) < 3 || strlen(mode) > 3 ||
+            mode[0] > '7' || mode[1] > '7' || mode[2] > '7')
+    {
+        printf("mode:%s - Length:%d\n", mode, strlen(mode));
+
+        printf("Please provide a valid mode\n");
+        return;
+    }
+
+    if(checkArg(filename))
+    {
+        printf("Please provide a path name\n");
+        return;
+    }
+
+    ino = getino(filename);
+
+    if(ino == 0) //Could not find provided file
+    {
+        printf("Please provide a valid filepath\n");
+        return;
+    }
+
+    mip = iget(running->cwd->dev, ino); //Load inode into memory
+
+    //Keep the file mode
+    if(S_ISDIR(mip->INODE.i_mode))
+        mip->INODE.i_mode = __S_IFDIR;
+    else if(S_ISREG(mip->INODE.i_mode))
+        mip->INODE.i_mode = __S_IFREG;
+    else if(S_ISREG(mip->INODE.i_mode))
+        mip->INODE.i_mode = __S_IFLNK;
+    else
+        mip->INODE.i_mode = 0;
+    
+
+    for(int i = 0; i < 3; i++) //Loop through three chmod values
+    {
+        rd = wr = ex = false;
+
+        val = mode[i] - '0'; //Conver mode to int
+
+        //Determine what modes to add
+        if(val >= 4)
+        {
+            val -= 4;
+            rd = true;
+        }
+        if(val >= 2)
+        {
+            val -= 2;
+            wr = true;
+        }
+        if(val >= 1)
+        {
+            val -= 1;
+            ex = true;
+        }
+
+        switch(i)
+        {
+            case 0: //Owner
+                if(rd)
+                    mip->INODE.i_mode += S_IRUSR;
+                if(wr)
+                    mip->INODE.i_mode += S_IWUSR;
+                if(ex)
+                    mip->INODE.i_mode += S_IXUSR;
+                break;
+            case 1: //Group
+                if(rd)
+                    mip->INODE.i_mode += S_IRGRP;
+                if(wr)
+                    mip->INODE.i_mode += S_IWGRP;
+                if(ex)
+                    mip->INODE.i_mode += S_IXGRP;
+                break;
+            case 2: //Others
+                if(rd)
+                    mip->INODE.i_mode += S_IROTH;
+                if(wr)
+                    mip->INODE.i_mode += S_IWOTH;
+                if(ex)
+                    mip->INODE.i_mode += S_IXOTH;
+                break;
+        }
+
+    }
+
+    mip->dirty = 1;
+    iput(mip);
+}
+
+
 void printMenu()
 {
     printf("|================== MENU ==================|\n");
     printf("|Level 1: ls, pwd, mkdir, creat, rmdir, rm |\n");
     printf("|         link, symlink, unlink, readlink  |\n");
-    printf("|Level 2: Coming...                        |\n");
+    printf("|         stat, touch, chmod               |\n");
+    printf("|Level 2: open, close, lseek, pfd, read    |\n");
+    printf("|         cat, write, cp, mv               |\n");
     printf("|Level 3: Coming...                        |\n");
     printf("|==========================================|\n");
+}
+
+int my_open(char* mode, char* filename)
+{
+    int ino, md, fd;
+    MINODE *mip;
+
+    if(DEBUG){printf("===== Inside my_open(char* mode=%s, char* filename=%s) =====\n", mode, filename);}
+
+    if(checkArg(mode)) //No mode provided
+    {
+        printf("Please a file and a mode with which to open said file\n");
+        return -1;
+    }
+    if(checkArg(filename)) //No filename provided
+    {
+        printf("Please provide the name of file to open\n");
+        return -1;
+    }
+
+    //Verify mode is valid
+    if(strcmp(mode, "R") == 0)
+        md = 0;
+    else if(strcmp(mode, "0") == 0)
+        md = 0;
+    else if(strcmp(mode, "W") == 0)
+        md = 1;
+    else if(strcmp(mode, "1") == 0)
+        md = 1;
+    else if(strcmp(mode, "RW") == 0)
+        md = 2;
+    else if(strcmp(mode, "2") == 0)
+        md = 2;
+    else if(strcmp(mode, "APPEND") == 0)
+        md = 3;
+    else if(strcmp(mode, "3") == 0)
+        md = 3;
+    else //Invalid moded
+    {
+        printf("Provided mode: %s is invalid\n", mode);
+        return -1;
+    }
+
+    if(DEBUG){printf("Mode Code = %d", md);}
+    //Check if file exists
+    ino = getino(filename);
+
+    if(ino == 0) //Could not find file
+    {
+        printf("Could not find %s\n", filename);
+        return -1;
+    }
+
+    if(filename[0] == '/') //Get device from root
+        mip = iget(root->dev, ino);
+    else //Get device from running proc
+        mip = iget(running->cwd->dev, ino);
+
+    if(!S_ISREG(mip->INODE.i_mode)) //Can't open anything but a regular file
+    {
+        printf("Cannot open anything except a regular file\n");
+        return -1;
+    }
+
+    //Check to see if file is already open for W, RW, or APPEND (Multiple R's okay)
+    for(int i = 0; i < 16; i++)
+    {
+        if(running->fd[i] == NULL || running->fd[i]->mptr->ino != mip->ino) //Skip any unallocated file descriptors or non matching inodes
+            continue;
+
+        switch(running->fd[i]->mode)
+        {
+            case 0:
+                break;
+
+            case 1:
+                printf("File already open for W mode\n");
+                return -1;
+
+            case 2:
+                printf("File already open for RW mode\n");
+                return -1;
+
+            case 3:
+                printf("File already open for APPEND mode\n");
+                return -1;
+
+            default:
+                printf("Unknown mode detected\n");
+                return -1;
+        }
+    }
+
+    //Look for an unallocated file descript and allocate it
+    for(int i = 0; i < 16; i++)
+    {
+        if(running->fd[i] == NULL) //Nothing allocated
+        {
+            if(DEBUG){printf("Allocating new file descriptor at PID:%d, fd[%d]\n", running->pid, i);}
+            running->fd[i] = (OFT *)malloc(sizeof(OFT)); //Allocate new memory for Open File Table
+
+            if(running->fd[i] != NULL) //Memory was allocated successfully
+            {
+                fd = i;
+                running->fd[i]->mode = md; //Set mode
+                running->fd[i]->mptr = mip; //Set MINODE
+                running->fd[i]->refCount = 1; //Set reference counter
+
+                //Set offsett accordingly
+                switch(md)
+                {
+                    case 0: //Read mode
+                        running->fd[i]->offset = 0;
+                        break;
+                    
+                    case 1: //Write mode
+                        mytruncate(mip); //Erase file
+                        running->fd[i]->offset = 0;
+                        break;
+
+                    case 2: //Read Write mode
+                        running->fd[i]->offset = 0;
+                        break;
+
+                    case 3: //Append mode
+                        running->fd[i]->offset = mip->INODE.i_size;
+                        break;
+
+                    default: //Invalid mode
+                        printf("Invalid mode\n");
+                        free(running->fd[i]); //Delete allocated memory
+                        running->fd[i] = NULL;
+                        return -1;
+                }
+
+                break;
+
+            }
+            else
+            {
+                printf("Memory allocation for new file descriptor failed\n");
+                return -1;
+            }
+        }
+    }
+
+    //Update INODE atime
+    mip->INODE.i_atime = time(0L);
+    if(DEBUG){printf("Updated atime for [%d, %d]\n", mip->dev, mip->ino);}
+
+    if(md == 1 || md == 2 || md == 3) //Update mtime for R|RW|APPEND
+    {
+        mip->INODE.i_mtime = time(0L);
+        if(DEBUG){printf("Updated mtime for [%d, %d]\n", mip->dev, mip->ino);}
+    }
+
+    mip->dirty = 1; //Mark INODE dirty
+
+    return fd; //Return file descriptor
+    
+}
+
+void my_close(char* fileDescriptor)
+{
+    int fd;
+    OFT *oftp; 
+    MINODE *mip;
+
+    if(DEBUG){printf("===== Inside my_close(int fd=%s) =====\n", fileDescriptor);}
+
+    if(checkArg(fileDescriptor)) //No argument provided
+    {
+        printf("Please provide a file descriptor to close\n");
+        return;
+    }
+
+    fd = atoi(fileDescriptor); 
+
+    if(fd < 0 || fd >= NFD) //file descriptor is out of range
+    {
+        printf("File descriptor %d is out of range\n", fd);
+        return;
+    }
+
+    if(running->fd[fd] == NULL) //File descriptor does not point to open file
+    {
+        printf("File descriptor %d not currently in use for process %d\n", fd, running->pid);
+        return;
+    }
+
+    oftp = running->fd[fd];
+    running->fd[fd] = NULL; //Let this process free up the file descriptor
+
+    oftp->refCount--; //Decrement reference counter
+
+    if(oftp->refCount > 0) //File is still open elsewhere
+        return;
+    
+    //If last reference to open file, put the mip and and deallocate oftp
+    mip = oftp->mptr;
+
+    iput(mip);
+    free(oftp);
+
+    return;
+}
+
+int my_lseek(char* fileDescriptor, char* position)
+{
+    int fd, pos, origPos;
+
+    if(checkArg(fileDescriptor)) //No file descriptor passed
+    {
+        printf("Please provide a file descriptor");
+        return;
+    }
+    else if(checkArg(position)) //No new position passed
+    {
+        printf("Please provide a position to move offset too\n");
+        return;
+    }
+
+    fd = atoi(fileDescriptor);
+    pos = atoi(position);
+
+    if(fd < 0 || fd >= NFD) //Check if fd is out of range
+    {
+        printf("File descriptor %d is out of range\n", fd);
+        return;
+    }
+
+    if(position < 0 || position > running->fd[fd]->mptr->INODE.i_size) //Check if position is our of range
+    {
+        printf("New position is out of range\n", pos);
+    }
+ 
+    origPos = running->fd[fd]->offset; //Get current offset
+    running->fd[fd]->offset = pos; //Update offset
+
+    if(DEBUG){printf("===== Changes offset of proc[%d]->fd[%d] from %d to %d =====\n", running->pid, fd, origPos, pos);}
+
+    return origPos; //Return original offset
+
+}
+
+void pfd()
+{
+    if(DEBUG){printf("===== Inside pfd() =====\n");}
+
+    printf(" fd \tmode\toffset\t INODE\n");
+    printf("----\t----\t------\t-------\n");
+    for(int i = 0; i < NFD; i++)
+    {
+        if(running->fd[i] == NULL) //No file descriptor
+            continue;
+        
+        //Print Descriptor
+        printf(" %2d \t", i);
+
+        //Print mode
+        switch(running->fd[i]->mode)
+        {
+            case 0:
+                printf("READ\t");
+                break;
+            case 1:
+                printf("WRITE\t");
+                break;
+            case 2:
+                printf("R/W\t");
+                break;
+            case 3:
+                printf("APPEND\t");
+                break;
+            default:
+                printf("UNKNOWN\t");
+                break;
+        }
+
+        //print offset
+        printf("%6d\t", running->fd[i]->offset);
+
+        //Print INODE
+        printf("[%d, %d]\n", running->fd[i]->mptr->dev, running->fd[i]->mptr->ino);
+    }
+}
+
+void my_read(char* fileDescriptor, char* numBytes)
+{
+    int fd, nbytes, avail;
+
+    if(checkArg(fileDescriptor))
+    {
+        printf("Please provide a file descriptor to read from\n");
+        return;
+    }
+    else if(checkArg(numBytes))
+    {
+        printf("Please provide the number of bytes to read in\n");
+    }
+
+    //Convert arguments to int
+    fd = atoi(fileDescriptor);
+    nbytes = atoi(numBytes);
+
+    if(fd < 0 || fd >= NFD) //file descriptor out of range
+    {
+        printf("File descriptor %d is out of range\n", fd);
+        return;
+    }
+
+    if(nbytes < 0) //Cant read negative bytes
+    {
+        printf("Cannot read in negative bytes\n");
+        return;
+    }
+
+    if(running->fd[fd] == NULL) //File descriptor not allocated
+    {
+        printf("The file descriptor %d is not allocated on proc[%d]", fd, running->pid);
+        return;
+    }
+
+    //Get the avaliable bytes left in the file
+    avail = running->fd[fd]->mptr->INODE.i_size - running->fd[fd]->offset;
+    
+    if(nbytes > avail)
+    {
+        printf("File only has %d avaliable bytes. Reading in remainder of file\n", avail);
+        nbytes = avail;
+    }
+
+    while(nbytes > 0) //Loop until all bytes have been read
+    {
+        if(nbytes > BLKSIZE)
+            readFile(fd, buf, BLKSIZE);
+        else
+            readFile(fd, buf, nbytes);
+
+        nbytes -= BLKSIZE;
+    }
+
+}
+
+int readFile(int fd, char *lbuf, int numBytes)
+{
+    int blk, start, remain, avaliable, *prBlk, rBlk;
+    int diblk, diblkpos, count = 0;
+    OFT *oftp = running->fd[fd];
+    char mybuf[BLKSIZE], *cp, *cpto = lbuf;
+
+    if(running->fd[fd]->mode != 0) //Not open for read
+    {
+        printf("File descriptor %d is not in READ mode\n", fd);
+        return -1;
+    }
+
+    avaliable = oftp->mptr->INODE.i_size - oftp->offset; //How many bytes are left in the file
+    if(DEBUG){printf("Reading %d bytes with %d bytes avaliable\n", numBytes, avaliable);}
+
+    while(numBytes > 0 && avaliable > 0) //Loop while still byte to read or bytes to read
+    {
+        blk = oftp->offset / BLKSIZE; //What data block to read in from
+        start = oftp->offset % BLKSIZE; //Where in that data block to read in from
+        remain = BLKSIZE - start; //How many bytes left in the data block
+
+        if(avaliable < remain)
+            remain = avaliable;
+
+        if(DEBUG){printf("blk=%d, start=%d, remain=%d\n", blk, start, remain);}
+
+        //Get the block to read from
+        if(blk < 12) //Direct Block
+        {
+            rBlk = oftp->mptr->INODE.i_block[blk];
+        }
+        else if (blk >= 12 && blk < 256 + 12) //Indirect block
+        {
+            get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[12], mybuf); //Read in indirect data block
+            blk -= 12; //Decrement block to account for first 12 blks
+            prBlk = (int *)buf + blk; //Set rBlk to indirect block number
+
+            rBlk = *prBlk;
+        }
+        else //Double indirect block
+        {
+            get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf);
+            blk -= 256 + 12; //Decrement blk to account for first 12 + 256 blks
+
+            diblk = blk / 256; //What int of the first double indirect
+            diblkpos = blk % 256; //What int in the second double indirect
+
+            prBlk = (int *)mybuf + diblk;
+
+            get_block(oftp->mptr->dev, *prBlk, mybuf);
+
+            prBlk = (int *)mybuf + diblkpos;
+
+            rBlk = *prBlk;
+
+        }
+
+        //Read in the data block to local buffer
+        get_block(oftp->mptr->dev, rBlk, mybuf);
+
+        cp = (char *)mybuf + start;
+
+        if(numBytes <= remain) //Less bytes to copy than that remaining
+        {
+            memcpy(cpto, cp, numBytes); //Copy memory
+
+            oftp->offset += numBytes; //Change offset to where read ended
+            count += numBytes;
+            numBytes = 0;
+        }
+        else //More bytes to copy than remaining
+        {
+            memcpy(cpto, cp, remain); //Copy memory
+
+            oftp->offset += remain; //Change offset to where read ended
+            numBytes -= remain; //Reduce number of bytes left by what was read
+            avaliable -= remain; //Reduce abliable number of bytes by what was read in
+            count += remain;
+            cp = (char*)cp + remain;
+        }
+    }
+
+    if(DEBUG){printf("Read in %d bytes from file descriptor %d\n", count, fd);}
+    return count;
+}
+
+void my_cat(char* filename)
+{
+    int fd, n;
+    char mybuf[BLKSIZE], dummy, fdbuf[3];
+    memset(mybuf, 0, BLKSIZE);
+    memset(fdbuf, 0, 3);
+
+    if(DEBUG){printf("===== cat(char* filename=%s =====\n", filename);}
+    if(checkArg(filename)) //No filename provided
+    {
+        printf("Please provide a filename to cat\n");
+        return;
+    }
+
+    fd = my_open("R", filename);
+
+    if(fd == -1) //Error opening file
+        return;
+
+    while((n = readFile(fd, mybuf, BLKSIZE)) > 0)
+    {
+        //Print to stdout
+        if(DEBUG){printf("Copying %d bytes to stdout\n", n);}
+        dummy = mybuf[n];
+        mybuf[n] = 0;
+
+        fputs(mybuf, stdout);
+        fputc(dummy, stdout);
+    }
+
+    if(DEBUG){printf("Converting fd %d to string\n", fd);}
+    sprintf(fdbuf, "%d", fd);
+    my_close(fdbuf);
+
+}
+
+void my_write(char* fileDescriptor)
+{
+    int fd;
+    char mybuf[BLKSIZE];
+
+    if(checkArg(fileDescriptor))
+    {
+        printf("Please provide a file descriptor to write to\n");
+        return;
+    }
+
+    fd = atoi(fileDescriptor); //Convert argument to int
+
+    if(fd < 0 || fd >= NFD) //Check if file descriptor is out of range
+    {
+        printf("File descriptor %d is out of range\n", fd);
+        return;
+    }
+    else if(running->fd[fd] == 0)
+    {
+        printf("No file descriptor allocated for %d\n", fd);
+        return;
+    }
+
+    printf("Please enter a string to write to the file (No more than 1024 Characters): ");
+    fgets(mybuf, BLKSIZE, stdin);
+
+    writeFile(fd, mybuf, strlen(mybuf));
+
+
+}
+
+int writeFile(int fd, char lbuf[], int numBytes)
+{
+    if(DEBUG){printf("===== writeFile(int fd=%d, char lbuf[], int numBytes=%d =====\n", fd, numBytes);}
+
+    int blk, start, remain;
+    int diblk, diblkpos, count = 0;
+    OFT *oftp = running->fd[fd];
+    char mybuf[BLKSIZE], *cpto, *cpfrom = lbuf;
+    int *pwBlk, *pwBlk2, wBlk;
+
+
+    if(oftp->mode == 0) //Can't write in Read mode
+    {
+        printf("File descripter is not in a write compatable mode\n");
+        return -1;
+    }
+
+    if(DEBUG){printf("Writing %d bytes to file descriptor %d\n", numBytes, fd);}
+
+    while(numBytes > 0) //Loop while still bytes to write
+    {
+        blk = oftp->offset / BLKSIZE; //What blk to write to
+        start = oftp->offset % BLKSIZE; //Where in the blk to start writing
+        remain = BLKSIZE - start; //How many bytes left in data block
+
+
+        if(blk < 12) //Indirect blocks
+        {
+            if(oftp->mptr->INODE.i_block[blk] == 0) //No data block allocated
+            {
+                oftp->mptr->INODE.i_block[blk] = balloc(oftp->mptr->dev); //Allocate new disk block
+                if(DEBUG){printf("Allocated new direct blk at INODE.i_block[%d]\n", blk);}
+
+                //Zero out the blk on the disk
+                get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[blk], mybuf);
+                memset(mybuf, 0, BLKSIZE);
+                put_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[blk], mybuf);
+            }
+            wBlk = oftp->mptr->INODE.i_block[blk];
+            if(DEBUG){printf("wBlk=%d\n", wBlk);}
+        }
+        else if(blk >= 12 && blk < 256 + 12) //Indirect block
+        {
+            if(oftp->mptr->INODE.i_block[12] == 0) //No indirect block allocated
+            {
+                oftp->mptr->INODE.i_block[12] = balloc(oftp->mptr->dev);
+                if(DEBUG){printf("Allocated new indirect blk at INODE.i_block[12]\n");}
+
+                //Zero out the blk on the disk
+                get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[12], mybuf);
+                memset(mybuf, 0, BLKSIZE);
+                put_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[12], mybuf);
+            }
+
+            get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[12], mybuf); //Get the indirect block
+            pwBlk = (int *)mybuf + blk - 12; //Figure out where to look for indirect
+
+            if(*pwBlk == 0) //No block allocated
+            {
+                *pwBlk = balloc(oftp->mptr->dev); //Allocate new disk block
+                put_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[12], mybuf); //Record newly allocated block in INODE
+
+                if(DEBUG){printf("Allocated new indirect blk %d in INODE.i_block[12]\n", *pwBlk);}
+
+                //Zero out newly allocated block
+                get_block(oftp->mptr->dev, *pwBlk, mybuf);
+                memset(mybuf, 0, BLKSIZE);
+                put_block(oftp->mptr->dev, *pwBlk, mybuf);
+            }
+
+            wBlk = *pwBlk;
+
+            if(DEBUG){printf("wBlk=%d\n", wBlk);}
+        }
+        else //Double indirect blocks
+        {
+            if(oftp->mptr->INODE.i_block[13] == 0) //No double indirect allocated
+            {
+                get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf);
+                memset(mybuf, 0, BLKSIZE);
+                put_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf);
+
+                if(DEBUG){printf("Allocated new double indirect blk at INODE.i_block[13]\n");}
+
+            }
+
+            get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf); //Get first double indirect
+            blk -= 256 + 12; //Decrement blk to account for first 12 + 256 blks
+
+            diblk = blk / 256; //What int of the first double indirect
+            diblkpos = blk % 256; //What int in the second double indirect
+
+            pwBlk = (int *)mybuf + diblk;
+
+            if(*pwBlk == 0) //No block allocated at that position
+            {
+                *pwBlk = balloc(oftp->mptr->dev); //Allocate new disk block
+                put_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf); //Write parent blk back
+
+                if(DEBUG){printf("Allocated new double indirect blk %d in INODE.i_block[13]\n", *pwBlk);}
+
+                //Zero out newly allocated block
+                get_block(oftp->mptr->dev, *pwBlk, mybuf);
+                memset(mybuf, 0, BLKSIZE);
+                put_block(oftp->mptr->dev, *pwBlk, mybuf);
+            }
+
+            get_block(oftp->mptr->dev, *pwBlk, mybuf); //Get second double indirect
+
+            pwBlk2 = (int *)mybuf + diblkpos;
+
+            if(*pwBlk2 == 0) //No block allocated at this position
+            {
+                *pwBlk2 = balloc(oftp->mptr->dev); //Allocate new disk block
+                put_block(oftp->mptr->dev, *pwBlk, mybuf); //Write parent blk back
+
+                if(DEBUG){printf("Allocated new double indirect blk %d in blk %d in INODE.i_block[13]\n", *pwBlk2, *pwBlk);}
+
+                //Zero out newly allocated block
+                get_block(oftp->mptr->dev, *pwBlk2, mybuf);
+                memset(mybuf, 0, BLKSIZE);
+                put_block(oftp->mptr->dev, *pwBlk2, mybuf);
+            }
+
+            wBlk = *pwBlk2;
+
+            if(DEBUG){printf("wBlk=%d\n", wBlk);}
+
+        }
+
+        if(DEBUG){printf("Getting block %d from disk to write to\n", wBlk);}
+        get_block(oftp->mptr->dev, wBlk, mybuf); //Get the block to write to
+
+        cpto = (char *)mybuf + start;
+
+        if(DEBUG){printf("Attempting copy with numBytes=%d and remain=%d\n", numBytes, remain);}
+        if(numBytes <= remain) //Less bytes to copy than that remaining in block
+        {
+            memcpy(cpto, cpfrom, numBytes); //Copy memory
+            if(DEBUG){printf("Copy Performed Successfully\n");}
+
+            oftp->offset += numBytes; //Change offset to where write ended
+            count += numBytes;
+            numBytes = 0;
+        }
+        else //More bytes to write than remaining in disk block
+        {
+            memcpy(cpto, cpfrom, remain); //Copy memory
+            if(DEBUG){printf("Copy Performed Successfully\n");}
+
+            oftp->offset += remain; //Change offset to where write ended
+            numBytes -= remain; //Reduce the number of bytes left to copy by what was written
+            count += remain;
+            cpfrom = (char *)cpfrom + remain;
+        }
+
+        if(oftp->offset > oftp->mptr->INODE.i_size) //Update filesize if offset is greater
+            oftp->mptr->INODE.i_size = oftp->offset;
+
+        if(DEBUG){printf("Writing block %d back to disk\n", wBlk);}
+        put_block(oftp->mptr->dev, wBlk, mybuf); //Write block back to disk
+    }
+
+    //Mark inode dirty
+    oftp->mptr->dirty = 1;
+    if(DEBUG){printf("Wrote %d bytes into file descriptor fd=%d\n", count, fd);}
+    return count;
+
+}
+
+bool my_cp(char* src, char* dest)
+{
+    int fd, gd, ino, n;
+    char temp[256], fds[3];
+    MINODE *mip;
+
+    strcpy(temp, dest);
+
+    if(checkArg(src))
+    {
+        printf("Please provide a source and destination file\n");
+        return false;
+    }
+    else if(checkArg(dest))
+    {
+        printf("Please provide a destination file\n");
+        return false;
+    }
+
+    fd = my_open("R", src); //Open file for read
+
+    if(fd == -1) //Error opening source file
+    {
+        printf("Error opening source file\n");
+        return false;
+    }
+
+    ino = getino(dest); //Look to see if file exists
+
+    if(ino == 0) //Could not find file
+    {
+        creat_file(dest); //Create the file
+        ino = getino(dest); //Search to see if new file was created
+
+        if(ino == 0) //Error creating file
+        {
+            printf("Error creating file\n", dest);
+            return false;
+        }
+        
+        if(DEBUG){printf("Created file successfully\n");}
+    }
+
+    gd = my_open("W", temp);
+
+    if(gd == -1) //Error opening destination file
+    {
+        printf("Error opening destination file\n");
+        return false;
+    }
+
+    while(n = readFile(fd, buf, BLKSIZE))
+    {
+        writeFile(gd, buf, n);
+        n = readFile(fd, buf, BLKSIZE);
+    }
+
+    memset(fds, 0, 3);
+    sprintf(fds, "%d", fd);
+    my_close(fds);
+
+    memset(fds, 0, 3);
+    sprintf(fds, "%d", gd);
+    my_close(fds);
+
+    return true;
+    
+}
+
+void my_mv(char* src, char* dest)
+{
+    int sino, dino;
+    MINODE *smip, *dmip;
+    bool sameDev;
+    char tsrc[256], tdest[256];
+
+    memset(tsrc, 0, 256);
+    memset(tdest, 0, 256);
+
+    if(checkArg(src)) //Make sure paramters were passed
+    {
+        printf("Please provide a source and destination file path\n");
+        return;
+    }
+    else if(checkArg(dest))
+    {
+        printf("Please provide a destination file path\n");
+        return;
+    }
+
+    //Copy arguments over
+    strncpy(tsrc, src, 255);
+    strncpy(tdest, dest, 255);
+
+    sino = getino(src); //Get the inode of source
+
+    if(DEBUG){printf("Inode = %d for %s", sino, src);}
+    
+    if(sino == 0) //Error finding inode
+    {
+        printf("Could not find source file\n");
+        return;
+    }
+
+    smip = iget(running->cwd->dev, sino); //Load source INODE into memory
+
+    dino = getino(dest); //Get the inode of destination
+
+    if(DEBUG){printf("Inode =%d for %s", dino, dest);}
+
+    if(dino == 0) //Error finding inode
+    {
+        dino = getino(dirname(dest));
+
+        if(dino == 0) //Error getting parent directory
+        {
+            printf("Could not find directory %s\n", dirname(tdest));
+            return;
+        }
+    }
+
+    dmip = iget(smip->dev, dino);
+
+    if(dmip->mptr != NULL) //Check if different device
+        sameDev = false;
+    else if (dmip->dev == smip->dev) //Same device
+        sameDev = true;
+    else //Something weird happened
+        sameDev = false;
+
+    switch(sameDev)
+    {
+        case true:
+            if(my_cp(tsrc, tdest)) //Copy file to new dest
+            {
+                myunlink(tsrc); //Unlink old file
+                return true;
+            }
+            else
+            {
+                printf("Error in moving the file\n");
+                return false;
+            }
+        case false:
+            if(my_cp(tsrc, tdest)) //Copy file to new destination on different device
+            {
+                myunlink(tsrc); //Unlink old file
+                return true;
+            }
+            else
+            {
+                printf("Error in moving the file to new device\n");
+                return false;
+            }
+    }
 }
 
 void quit()
@@ -1205,13 +2305,16 @@ void quit()
     {
         if ((minode[i].refCount > 0) && minode[i].dirty)
         {
-            printf("Calling iput() on minode[%d]\n", i);
+            if(DEBUG){printf("Calling iput() on minode[%d]\n", i);}
             minode[i].refCount = 1;
             iput(&minode[i]);
         }
     }
 
-    printf("Quitting the program\n");
+    //Handle all open files
+    closeAllFiles();
+
+    if(DEBUG){printf("Quitting the program\n");}
     exit(1);
 }
 

@@ -21,7 +21,7 @@ extern char *GREEN, *NORMAL, *RED, *LAVENDER, *PURPLE, *DARKBLUE, *BLUE, *YELLOW
 extern bool DEBUG; //Used to turn debugging on and off
 
 //Gets the data block from the device at the specified blk number
-//Returns 0 if block cannot be grabbed
+//Returns 0 if block  cannot be grabbed
 int get_block(int dev, int blk, char *buf);
 
 //Puts the passed buffer into the specified blk number on the provided dev
@@ -73,5 +73,23 @@ int getino(char *path);
 
 //Deallocates all of the data blocks of INODE
 void mytruncate(MINODE* mip);
+
+//Loops through all possible processes and closes any open files
+//Deallocates the allocated OFT
+void closeAllFiles();
+
+//Duplicates fd[fd] into the first empty slot of fd[]
+void my_dup(char* fileDescriptor);
+
+//my_close() is located in the command.c/command.h file. It is defined here
+//with extern so that it may be used in my_dup2()
+extern void my_close(char* fileDescriptor);
+
+//Duplicates fd[fd] into fd[gd], closing fd[gd] if it's currently open
+void my_dup2(char* fileDescriptor, char* otherFileDescriptor);
+
+//Checks if an argument is null or first character is null
+//Returns true if this is the case, false otherwise
+bool checkArg(char* arg);
 
 #endif

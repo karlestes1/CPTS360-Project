@@ -4,10 +4,8 @@
 #Ignore object files used for compiling
 *.o
 
-#Ignore disk images
-disk
+#Ignore extra disk images
 diskimage
-mydisk
 testdisk
 
 #Ignore .html files

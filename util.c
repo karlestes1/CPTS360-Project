@@ -42,6 +42,7 @@ int clr_bit(char *pbuf, int bit)
 
 int ialloc(int dev)
 {
+  if(DEBUG){printf("\n===== ialloc(int dev=%d =====\n", dev);}
   int  i;
   char lbuf[BLKSIZE];
 
@@ -60,6 +61,7 @@ int ialloc(int dev)
 
 int balloc(int dev)
 {
+  if(DEBUG){printf("\n===== balloc(int dev=%d =====\n", dev);}
   int i;
   char lbuf[BLKSIZE];
 
@@ -124,6 +126,7 @@ int tokenize(char *path)
 // return minode pointer to loaded INODE
 MINODE *iget(int dev, int ino)
 {
+  if(DEBUG){printf("\n===== iget(int dev=%d, int ino=%d =====\n", dev, ino);}
   int i;
   MINODE *mip;
   char buf[BLKSIZE];
@@ -168,6 +171,7 @@ MINODE *iget(int dev, int ino)
 
 void iput(MINODE *mip)
 {
+  if(DEBUG){printf("\n===== iput(MINODE* mip[%d, %d] =====\n", mip->dev, mip->ino);}
  int i, block, offset;
  char buf[BLKSIZE];
  INODE *ip;
@@ -204,6 +208,7 @@ void iput(MINODE *mip)
 
 int search(MINODE *mip, char *name)
 {
+  if(DEBUG){printf("\n===== search(MINODE *mip[%d, %d], char* name=%s =====\n", mip->dev, mip->ino, name);}
   //printf("=====Calling search on mip=[%d %d] and %s=====\n", mip->dev, mip->ino, name);
   
   char sbuf[BLKSIZE], temp[256];
@@ -243,19 +248,21 @@ int getino(char *path)
   INODE *ip;
   MINODE *mip;
 
-  //printf("getino: path=%s\n", path);
+  if(DEBUG){printf("getino: path=%s\n", path);}
   if (strcmp(path, "/")==0)
       return 2;
 
   if (path[0]=='/')
   {
-    mip = iget(dev, 2);
-    //printf("Absolute Path\n");
+    mip = iget(root->dev, 2);
+    if(DEBUG){printf("Absolute Path\n");}
+    dev = root->dev;
   }
   else
   {
     mip = iget(running->cwd->dev, running->cwd->ino);
-    //printf("Relative Path\n");
+    if(DEBUG){printf("Relative Path\n");}
+    dev = running->cwd->dev;
   }
 
 
@@ -264,11 +271,11 @@ int getino(char *path)
   for (i=0; i<nname; i++){
       //printf("===========================================\n");
       ino = search(mip, name[i]);
-      //printf("Search returned ino:%d\n", ino);
+      if(DEBUG){printf("Search returned ino:%d\n", ino);}
 
       if (ino==0){
          iput(mip);
-         printf("name %s does not exist\n", name[i]);
+         if(DEBUG){printf("name %s does not exist\n", name[i]);}
          return 0;
       }
       iput(mip);
@@ -279,6 +286,9 @@ int getino(char *path)
 
 void mytruncate(MINODE* mip)
 {
+  int *pint, *pint2;
+  char lbuf[BLKSIZE];
+
   if(mip != NULL) //Make sure MINODE was passed
   {
     for(int i = 0; i < 12; i++) //Loop through all inodes in MIP (ASSUME 12 DIRECT BLKS)
@@ -287,7 +297,148 @@ void mytruncate(MINODE* mip)
         continue;
 
       bdealloc(mip->dev, mip->INODE.i_block[i]); //Deallocate the iblock
+      mip->INODE.i_block[i] = 0;
+    }
+
+    if(mip->INODE.i_block[12] != 0)
+    {
+      //Handle indirect blocks
+      get_block(mip->dev, mip->INODE.i_block[13], buf);
+
+      pint = (int *)buf;
+
+      while(*pint != 0 && pint < buf + BLKSIZE) //Look through all indirect blocks
+      {
+        bdealloc(mip->dev, *pint);
+        pint++;
+      }
+
+      bdealloc(mip->dev, mip->INODE.i_block[12]);
+      mip->INODE.i_block[12] = 0;
+    }
+
+
+    if(mip->INODE.i_block[13] != 0)
+    {
+      //Handle double indirect blocks
+      get_block(mip->dev, mip->INODE.i_block[14], buf);
+
+      pint = (int *)buf;
+
+      while(*pint != 0 && pint < buf + BLKSIZE) //Loop through double indirect data block
+      {
+        get_block(mip->dev, *pint, lbuf); //Read in each sub data block
+
+        pint2 = (int *)lbuf;
+
+        while(*pint2 != 0 && pint2 < buf + BLKSIZE) //Deallocate all sub blocks
+        {
+          bdealloc(mip->dev, *pint2);
+          pint2++;
+        }
+
+        pint++;
+      }
+
+      bdealloc(mip->dev, mip->INODE.i_block[13]);
+      mip->INODE.i_block[13] = 0;
     }
   }
 }
 
+void closeAllFiles()
+{
+  for(int i = 0; i < NPROC; i++) //Loop through all procs
+  {
+    for(int j = 0; j < NFD; j++) //Loop through all possible file descriptors
+    {
+      if (proc[i].fd[j] != NULL) //A file is open
+      {
+        if(DEBUG){printf("Closing proc[%d].fd[%d]\n", i, j);}
+        iput(proc[i].fd[j]->mptr); //Put the MINODE
+        free(proc[i].fd[j]);
+      }
+    }
+  }
+}
+
+void my_dup(char* fileDescriptor)
+{
+  int fd;
+
+  if(fileDescriptor == NULL || *fileDescriptor == NULL) //No argument passed
+  {
+    printf("No file desciptor passed\n");
+    return;
+  }
+
+  fd = atoi(fileDescriptor); //Convert argument to int
+
+  if(fd < 0 || fd >= NFD) //Descriptor out of bounds
+  {
+    printf("File descriptor %d is out of bounds\n", fd);
+    return;
+  }
+
+  if(DEBUG){printf("Duplicating %d in proc[%d]\n", fd, running->pid);}
+
+  for(int i = 0; i < NFD; i++)
+  {
+    if(running->fd[i] == NULL) //Found where to insert
+    {
+      running->fd[i] = running->fd[fd];
+      running->fd[i]->refCount++; //Increment refcount by 1
+      return;
+    }
+  }
+
+  printf("No more room to open file under current process\n"); //Only reaches if descriptor isn't duplicated
+
+
+}
+
+void my_dup2(char* fileDescriptor, char* otherFileDescriptor)
+{
+  int fd, gd;
+
+  if(fileDescriptor == NULL || *fileDescriptor == NULL) //No arguments pass
+  {
+    printf("Missing both file descriptor arguments\n");
+    return;
+  }
+  else if(otherFileDescriptor == NULL || *otherFileDescriptor == NULL) //Missing fd to copy to
+  {
+    printf("Missing file descriptor to copy to\n");
+    return;
+  }
+
+  //Convert arguments to integers
+  fd = atoi(fileDescriptor);
+  gd = atoi(otherFileDescriptor);
+
+  if(fd < 0 || fd >= NFD) //fd is out of range
+  {
+    printf("File descriptor %d is out of range\n", fd);
+    return;
+  }
+  else if(gd < 0 || gd >= NFD) //gd is out of range
+  {
+    printf("File descriptor %d is out of range\n", gd);
+    return;
+  }
+
+  if(running->fd[gd] != NULL)
+    my_close(otherFileDescriptor);
+
+  running->fd[gd] = running->fd[fd]; //Duplicate the file descriptor
+  running->fd[gd]->refCount++; //Increase ref count
+
+  return;
+}
+
+bool checkArg(char* arg)
+{
+  if(arg == NULL || *arg == NULL)
+    return true;
+  return false;
+}

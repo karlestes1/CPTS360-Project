@@ -51,7 +51,7 @@ void mymkdir(MINODE* pip, char* name);
 
 //Creates a new file on the disk
 //Does so by calling mycreat which actually allocated for the new file
-void creat_file(char *path);
+bool creat_file(char *path);
 
 //Does the actual allocation for a new file on the disk
 //Algorithm idea was taken from the lab assignment mkdir_creat for class
@@ -85,11 +85,11 @@ void rm_file(char *path);
 void myrm(MINODE *mip, char* path);
 
 //Creates a hard link to the file
-void mylink(char* oldname, char* newname);
+bool mylink(char* oldname, char* newname);
 
 //Deletes a name from the file system
 //If it is the last link to the file, it removes the file
-void myunlink(char* pathname);
+bool myunlink(char* pathname);
 
 //Creates a symbolic link to the passed file (oldname)
 void mysymlink(char* oldname, char* newname);
@@ -100,8 +100,69 @@ void myreadlink(char* link);
 //Prints the contents of the symlink file with no newline at the end
 void myreadlink_nonewline(char* link);
 
+//Works just as linux touch does
+//Update access and modification time of the provided file
+//If file does not exist, it will create the file
+void my_touch(char* filename);
+
+//Prints out information about a file
+//Prints in the following way
+    //File: 
+    //Size:     Blocks:     IO Block:       $filetype
+    //Device:   Inode:      Links:
+    //Access:   Uid:        Gid:
+    //Access:   $time
+    //Modify:   $time
+    //Change:   $time
+void my_stat(char* filename);
+
+//Changes the file mode bits
+//Accepts ### filename
+void my_chmod(char* mode, char* filename);
+
 //Prints out the menu of all the commands
 void printMenu();
+
+//Opens a file with the specific mode
+//Modes include R(0)|W(1)|RW(2)|APPEND(3)
+    //Either the R|W|RW|APPEND or 0|1|2|3 may be used to denote mode
+int my_open(char* mode, char* filename);
+
+//If the passed file descriptor is open, closes the file
+void my_close(char* fileDescriptor);
+
+//Changes the offset of the file descriptor to a certain position
+int my_lseek(char* fileDescriptor, char* position);
+
+//Prints all currently open file descriptors, as well as mode, offset, and INODE
+void pfd();
+
+//Allows the user to test the read function
+//Calls readFile() to do the actual reading
+//Will break the reading down into calls of sizes no greater than BLKSIZE
+void my_read(char* fileDescriptor, char* numBytes);
+
+//Actually reads in the specified number of bytes into the file
+int readFile(int fd, char *lbuf, int numBytes);
+
+//Acts just as linux cat does
+void my_cat(char* filename);
+
+//Allows the user to test the write function
+//calls writeFile() to do the actual writing
+void my_write(char* fileDescriptor);
+
+//Writes a specified number of bytes from lbuf to the file at fd
+//Will only write if mode is proper
+int writeFile(int fd, char lbuf[], int numBytes);
+
+//Copies src into dest
+//Creates dest if it does not already exist
+bool my_cp(char* src, char* dest);
+
+//Moves the file from src to destination
+//Acts just at mv does on Linux
+void my_mv(char* src, char* dest);
 
 //Quit the program
 //iput() on all minodes with (refCount > 0 && DIRTY);
