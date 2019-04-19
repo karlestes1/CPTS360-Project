@@ -20,10 +20,10 @@
         ✔ lseek() @started(19-04-18 20:17) @done(19-04-18 20:35) @lasted(18m15s)
         ✔ cat() @started(19-04-18 21:50) @done(19-04-18 22:22) @lasted(32m46s)
         ✔ cp() @started(19-04-19 00:43) @done(19-04-19 01:19) @lasted(36m36s)
-        ☐ mv() @critical 
+        ✔ mv()  @started(19-04-19 08:57) @done(19-04-19 10:19) @lasted(1h22m14s)
         ✔ pfd() @done(19-04-18 18:46)
         ✔ touch() @done(19-04-16 17:23)
-        ☐ update printMenu() @low 
+        ✔ update printMenu() @started(19-04-19 10:19) @done(19-04-19 10:22) @lasted(3m56s)
         ✔ dup @done(19-04-18 19:10)
         ✔ dup2 @started(19-04-18 19:10) @done(19-04-18 20:16) @lasted(1h6m55s)
 
@@ -32,3 +32,4 @@
         ☐ unmount() @high
         ☐ file permission checking @low 
         ☐ update printMenu() @low 
+        ☐ add help command

@@ -51,7 +51,7 @@ void mymkdir(MINODE* pip, char* name);
 
 //Creates a new file on the disk
 //Does so by calling mycreat which actually allocated for the new file
-void creat_file(char *path);
+bool creat_file(char *path);
 
 //Does the actual allocation for a new file on the disk
 //Algorithm idea was taken from the lab assignment mkdir_creat for class
@@ -85,11 +85,11 @@ void rm_file(char *path);
 void myrm(MINODE *mip, char* path);
 
 //Creates a hard link to the file
-void mylink(char* oldname, char* newname);
+bool mylink(char* oldname, char* newname);
 
 //Deletes a name from the file system
 //If it is the last link to the file, it removes the file
-void myunlink(char* pathname);
+bool myunlink(char* pathname);
 
 //Creates a symbolic link to the passed file (oldname)
 void mysymlink(char* oldname, char* newname);
@@ -158,7 +158,11 @@ int writeFile(int fd, char lbuf[], int numBytes);
 
 //Copies src into dest
 //Creates dest if it does not already exist
-void my_cp(char* src, char* dest);
+bool my_cp(char* src, char* dest);
+
+//Moves the file from src to destination
+//Acts just at mv does on Linux
+void my_mv(char* src, char* dest);
 
 //Quit the program
 //iput() on all minodes with (refCount > 0 && DIRTY);

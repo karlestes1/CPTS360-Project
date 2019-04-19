@@ -3,11 +3,11 @@
 //Globals
 
 char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "touch", "stat", "chmod", "open", "close", 
-                "lseek", "pfd", "read", "cat", "write", "cp", "quit", "debug_on", "debug_off", NULL};
+                "lseek", "pfd", "read", "cat", "write", "cp", "mv", "quit", "debug_on", "debug_off", NULL};
 int (*fptr[])(char*, char*) = {(int *)ls, (int *)pwd, (int *)cd, (int *)mk_dir, (int *)creat_file, (int *)rm_dir, (int *)rm_file, (int*)mylink, 
                                 (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int*)my_touch, (int*)my_stat, (int*)my_chmod, (int *)my_open, 
                                 (int *)my_close, (int *)my_lseek, (int *)pfd, (int *)my_read, (int *)my_cat, (int *)my_write, (int *)my_cp,
-                                (int *)quit, (int *)debug_on, (int *)debug_off};
+                                (int *)my_mv, (int *)quit, (int *)debug_on, (int *)debug_off};
 
 int findCommand(char *command)
 {
@@ -389,8 +389,9 @@ void mymkdir(MINODE* pip, char* name)
 
 }
 
-void creat_file(char *path)
+bool creat_file(char *path)
 {
+    if(DEBUG){printf("\n===== create_file(char* path=%s =====\n", path);}
     char * newFile = basename(path); //Name of new direc to be created
     char* parents=dirname(path); //Path of all parent directories
     int pino; //Keeps track of parent inode
@@ -399,28 +400,34 @@ void creat_file(char *path)
     if(checkArg(path))
     {
         printf("Please provide a name for the new file\n");
-        return;
+        return false;
     }
 
     pino = getino(parents); //Search path of all parent directories
 
     if(pino == 0) //Specified path failed
-        return;
+        return false;
 
-    pip = iget(dev, pino); //Get the minode for searched ino number
+    if(DEBUG){printf("Creat_File: parent inode = %d\n", pino);}
+
+    pip = iget(running->cwd->dev, pino); //Get the minode for searched ino number
+
+    if(DEBUG){printf("Creat_File: loaded MINODE with inode = %d\n", pip->ino);}
     
     if(!S_ISDIR(pip->INODE.i_mode)) //Check if the found parent is a directory
     {
         printf("Error: %s is not a directory\n", basename(parents));
         iput(pip);
-        return;
+        return false;
     }
+
+    if(DEBUG){printf("Create_File: Found parent was a directory\n", pino);}
 
     if(search(pip, newFile) != 0) //A dir with that name already exists
     {
         printf("A file with the name %s already exists\n", newFile);
         iput(pip);
-        return;
+        return false;
     }
 
     mycreat(pip, newFile); //Actually create the new directory
@@ -432,16 +439,19 @@ void creat_file(char *path)
     pip->dirty = 1;
 
     iput(pip);
+
+    return true;
 }
 
 void mycreat(MINODE *pip, char* name)
 {
+    if(DEBUG){printf("\n===== mycreat(MINODE *pip[%d, %d], char* name=%s =====\n",pip->dev, pip->ino, name);}
     int newino, newbno; //Keeps track of new allocated ino and bno
     MINODE *mip;
 
     newino = ialloc(pip->dev); //Allocate new ino in imap
 
-    //printf("Allocated ino=%d and bno=%d\n", newino, newbno);
+    if(DEBUG){printf("Allocated ino=%d and bno=%d\n", newino, newbno);}
 
     mip = iget(pip->dev, newino); //Load the inode into an MINODE
 
@@ -897,7 +907,7 @@ void myrm(MINODE *mip, char *path)
     iput(pip);
 }
 
-void mylink(char* oldname, char* newname)
+bool mylink(char* oldname, char* newname)
 {
     //printf("\n\n In mylink()\n\n");
     int ino;
@@ -910,12 +920,12 @@ void mylink(char* oldname, char* newname)
     if(checkArg(oldname)) //No name provided
     {
         printf("Please provided a file to link\n");
-        return;
+        return false;
     }
     else if(checkArg(newname))
     {
         printf("Please provided a name for the new file\n");
-        return;
+        return false;
     }
 
     //printf("oldname:%s\nnewname:%s\n", oldname, newname);
@@ -934,7 +944,7 @@ void mylink(char* oldname, char* newname)
     if(ino == 0) //Invalid path
     {
         printf("Invalid path to file to link to\n");
-        return;
+        return false;
     }
 
     mip = iget(running->cwd->dev, ino); //Get MINODE of file to create link from
@@ -944,7 +954,7 @@ void mylink(char* oldname, char* newname)
     {
         printf("You cannot create a link to a directory\n");
         iput(mip);
-        return;
+        return false;
     }
 
     ino = getino(parents); //Get the ino number of the parent path for new file
@@ -954,7 +964,7 @@ void mylink(char* oldname, char* newname)
     {
         printf("Invalid path to directory in which to place new link\n");
         iput(mip);
-        return;
+        return false;
     }
 
     pip = iget(mip->dev, ino); //Get the MINODE of the directory in which to palce new file
@@ -965,7 +975,7 @@ void mylink(char* oldname, char* newname)
         printf("You can only add files to a directory\n");
         iput(mip);
         iput(pip);
-        return;
+        return false;
     }
 
     ino = search(pip, newlink); //Search to see if file by same name already exists in parent dir
@@ -976,6 +986,7 @@ void mylink(char* oldname, char* newname)
         if(strcmp(parents, ".") == 0)
             strcpy(parents, "/");
         printf("A file by the name %s already exists in %s\n", newlink, parents);
+        return false;
     }
 
 
@@ -990,12 +1001,12 @@ void mylink(char* oldname, char* newname)
     iput(mip);
     iput(pip);
 
-    return;
+    return true;
 
     
 }
 
-void myunlink(char* pathname)
+bool myunlink(char* pathname)
 {
     int pino, ino;
     MINODE *mip, *pip;
@@ -1008,7 +1019,7 @@ void myunlink(char* pathname)
     if(checkArg(pathname)) //No file path was provided
     {
         printf("You need to tell me what file to unlink\n");
-        return;
+        return false;
     }
 
     strcpy(child, basename(pathname));
@@ -1019,7 +1030,7 @@ void myunlink(char* pathname)
     if(ino == 0) //The specified file/path does not exist
     {
         printf("Invalid Path\n");
-        return;
+        return false;
     }
 
     pip = iget(running->cwd->dev, pino); //Load the MINODE for the corresponding INODE
@@ -1030,7 +1041,7 @@ void myunlink(char* pathname)
     {
         printf("Invalid Path\n");
         iput(pip);
-        return;
+        return false;
     }
 
     mip = iget(pip->dev, ino);
@@ -1040,7 +1051,7 @@ void myunlink(char* pathname)
         printf("Cannot unlink a directory\n");
         iput(pip);
         iput(mip);
-        return;
+        return false;
     }
 
     //printf("mip old link counts: %d\n", mip->INODE.i_links_count);
@@ -1061,6 +1072,8 @@ void myunlink(char* pathname)
 
     iput(mip);
     iput(pip);
+
+    return true;
 }
 
 void mysymlink(char* oldname, char* newname)
@@ -1455,7 +1468,8 @@ void printMenu()
     printf("|Level 1: ls, pwd, mkdir, creat, rmdir, rm |\n");
     printf("|         link, symlink, unlink, readlink  |\n");
     printf("|         stat, touch, chmod               |\n");
-    printf("|Level 2: open, close, lseek, pfd          |\n");
+    printf("|Level 2: open, close, lseek, pfd, read    |\n");
+    printf("|         cat, write, cp, mv               |\n");
     printf("|Level 3: Coming...                        |\n");
     printf("|==========================================|\n");
 }
@@ -2127,7 +2141,7 @@ int writeFile(int fd, char lbuf[], int numBytes)
 
 }
 
-void my_cp(char* src, char* dest)
+bool my_cp(char* src, char* dest)
 {
     int fd, gd, ino, n;
     char temp[256], fds[3];
@@ -2138,12 +2152,12 @@ void my_cp(char* src, char* dest)
     if(checkArg(src))
     {
         printf("Please provide a source and destination file\n");
-        return;
+        return false;
     }
     else if(checkArg(dest))
     {
         printf("Please provide a destination file\n");
-        return;
+        return false;
     }
 
     fd = my_open("R", src); //Open file for read
@@ -2151,7 +2165,7 @@ void my_cp(char* src, char* dest)
     if(fd == -1) //Error opening source file
     {
         printf("Error opening source file\n");
-        return;
+        return false;
     }
 
     ino = getino(dest); //Look to see if file exists
@@ -2164,7 +2178,7 @@ void my_cp(char* src, char* dest)
         if(ino == 0) //Error creating file
         {
             printf("Error creating file\n", dest);
-            return;
+            return false;
         }
         
         if(DEBUG){printf("Created file successfully\n");}
@@ -2175,7 +2189,7 @@ void my_cp(char* src, char* dest)
     if(gd == -1) //Error opening destination file
     {
         printf("Error opening destination file\n");
-        return;
+        return false;
     }
 
     while(n = readFile(fd, buf, BLKSIZE))
@@ -2191,7 +2205,97 @@ void my_cp(char* src, char* dest)
     memset(fds, 0, 3);
     sprintf(fds, "%d", gd);
     my_close(fds);
+
+    return true;
     
+}
+
+void my_mv(char* src, char* dest)
+{
+    int sino, dino;
+    MINODE *smip, *dmip;
+    bool sameDev;
+    char tsrc[256], tdest[256];
+
+    memset(tsrc, 0, 256);
+    memset(tdest, 0, 256);
+
+    if(checkArg(src)) //Make sure paramters were passed
+    {
+        printf("Please provide a source and destination file path\n");
+        return;
+    }
+    else if(checkArg(dest))
+    {
+        printf("Please provide a destination file path\n");
+        return;
+    }
+
+    //Copy arguments over
+    strncpy(tsrc, src, 255);
+    strncpy(tdest, dest, 255);
+
+    sino = getino(src); //Get the inode of source
+
+    if(DEBUG){printf("Inode = %d for %s", sino, src);}
+    
+    if(sino == 0) //Error finding inode
+    {
+        printf("Could not find source file\n");
+        return;
+    }
+
+    smip = iget(running->cwd->dev, sino); //Load source INODE into memory
+
+    dino = getino(dest); //Get the inode of destination
+
+    if(DEBUG){printf("Inode =%d for %s", dino, dest);}
+
+    if(dino == 0) //Error finding inode
+    {
+        dino = getino(dirname(dest));
+
+        if(dino == 0) //Error getting parent directory
+        {
+            printf("Could not find directory %s\n", dirname(tdest));
+            return;
+        }
+    }
+
+    dmip = iget(smip->dev, dino);
+
+    if(dmip->mptr != NULL) //Check if different device
+        sameDev = false;
+    else if (dmip->dev == smip->dev) //Same device
+        sameDev = true;
+    else //Something weird happened
+        sameDev = false;
+
+    switch(sameDev)
+    {
+        case true:
+            if(my_cp(tsrc, tdest)) //Copy file to new dest
+            {
+                myunlink(tsrc); //Unlink old file
+                return true;
+            }
+            else
+            {
+                printf("Error in moving the file\n");
+                return false;
+            }
+        case false:
+            if(my_cp(tsrc, tdest)) //Copy file to new destination on different device
+            {
+                myunlink(tsrc); //Unlink old file
+                return true;
+            }
+            else
+            {
+                printf("Error in moving the file to new device\n");
+                return false;
+            }
+    }
 }
 
 void quit()

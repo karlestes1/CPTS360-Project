@@ -42,6 +42,7 @@ int clr_bit(char *pbuf, int bit)
 
 int ialloc(int dev)
 {
+  if(DEBUG){printf("\n===== ialloc(int dev=%d =====\n", dev);}
   int  i;
   char lbuf[BLKSIZE];
 
@@ -60,6 +61,7 @@ int ialloc(int dev)
 
 int balloc(int dev)
 {
+  if(DEBUG){printf("\n===== balloc(int dev=%d =====\n", dev);}
   int i;
   char lbuf[BLKSIZE];
 
@@ -124,6 +126,7 @@ int tokenize(char *path)
 // return minode pointer to loaded INODE
 MINODE *iget(int dev, int ino)
 {
+  if(DEBUG){printf("\n===== iget(int dev=%d, int ino=%d =====\n", dev, ino);}
   int i;
   MINODE *mip;
   char buf[BLKSIZE];
@@ -168,6 +171,7 @@ MINODE *iget(int dev, int ino)
 
 void iput(MINODE *mip)
 {
+  if(DEBUG){printf("\n===== iput(MINODE* mip[%d, %d] =====\n", mip->dev, mip->ino);}
  int i, block, offset;
  char buf[BLKSIZE];
  INODE *ip;
@@ -204,6 +208,7 @@ void iput(MINODE *mip)
 
 int search(MINODE *mip, char *name)
 {
+  if(DEBUG){printf("\n===== search(MINODE *mip[%d, %d], char* name=%s =====\n", mip->dev, mip->ino, name);}
   //printf("=====Calling search on mip=[%d %d] and %s=====\n", mip->dev, mip->ino, name);
   
   char sbuf[BLKSIZE], temp[256];
@@ -249,13 +254,15 @@ int getino(char *path)
 
   if (path[0]=='/')
   {
-    mip = iget(dev, 2);
+    mip = iget(root->dev, 2);
     if(DEBUG){printf("Absolute Path\n");}
+    dev = root->dev;
   }
   else
   {
     mip = iget(running->cwd->dev, running->cwd->ino);
     if(DEBUG){printf("Relative Path\n");}
+    dev = running->cwd->dev;
   }
 
 
