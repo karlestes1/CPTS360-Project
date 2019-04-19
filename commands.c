@@ -6,7 +6,7 @@ char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unl
                 "lseek", "pfd", "read", "cat", "quit", "debug_on", "debug_off", NULL};
 int (*fptr[])(char *, char*) = {(int *)ls, (int *)pwd, (int *)cd, (int *)mk_dir, (int *)creat_file, (int *)rm_dir, (int *)rm_file, (int*)mylink, 
                                 (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int*)my_touch, (int*)my_stat, (int*)my_chmod, (int *)my_open, 
-                                (int *)my_close, (int *)my_lseek, (int *) pfd, (int *) my_read, (int *)my_cat, (int *)quit, (int *)debug_on, (int *)debug_off};
+                                (int *)my_close, (int *)my_lseek, (int *)pfd, (int *)my_read, (int *)my_cat, (int *)quit, (int *)debug_on, (int *)debug_off};
 
 int findCommand(char *command)
 {
@@ -1625,7 +1625,7 @@ void my_close(char* fileDescriptor)
     OFT *oftp; 
     MINODE *mip;
 
-    if(DEBUG){printf("===== Inside my_close(int fd=%s) =====\n", fd);}
+    if(DEBUG){printf("===== Inside my_close(int fd=%s) =====\n", fileDescriptor);}
 
     if(checkArg(fileDescriptor)) //No argument provided
     {
@@ -1815,6 +1815,7 @@ int readFile(int fd, char *lbuf, int numBytes)
     }
 
     avaliable = oftp->mptr->INODE.i_size - oftp->offset; //How many bytes are left in the file
+    if(DEBUG){printf("Reading %d bytes with %d bytes avaliable\n", numBytes, avaliable);}
 
     while(numBytes > 0 && avaliable > 0) //Loop while still byte to read or bytes to read
     {
@@ -1879,6 +1880,39 @@ int readFile(int fd, char *lbuf, int numBytes)
 
 void my_cat(char* filename)
 {
+    int fd, n;
+    char mybuf[BLKSIZE], dummy, fdbuf[3];
+    memset(mybuf, 0, BLKSIZE);
+    memset(fdbuf, 0, 3);
+
+    if(DEBUG){printf("===== cat(char* filename=%s =====\n", filename);}
+    if(checkArg(filename)) //No filename provided
+    {
+        printf("Please provide a filename to cat\n");
+        return;
+    }
+
+    fd = my_open("R", filename);
+
+    if(fd == -1) //Error opening file
+        return;
+
+    while((n = readFile(fd, mybuf, BLKSIZE)) > 0)
+    {
+        //Print to stdout
+        if(DEBUG){printf("Copying %d bytes to stdout\n", n);}
+        memcpy(stdout, mybuf, n);
+        fflush(stdout);
+        //dummy = mybuf[n];
+        //mybuf[n] = 0;
+
+        printf("%s\n", mybuf);
+        
+    }
+
+    if(DEBUG){printf("Converting fd %d to string\n", fd);}
+    sprintf(fdbuf, "%d", fd);
+    my_close(fdbuf);
 
 }
 
