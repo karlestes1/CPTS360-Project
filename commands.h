@@ -156,6 +156,10 @@ void my_write(char* fileDescriptor);
 //Will only write if mode is proper
 int writeFile(int fd, char lbuf[], int numBytes);
 
+//Copies src into dest
+//Creates dest if it does not already exist
+void my_cp(char* src, char* dest);
+
 //Quit the program
 //iput() on all minodes with (refCount > 0 && DIRTY);
 void quit();

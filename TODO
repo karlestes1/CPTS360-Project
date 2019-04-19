@@ -19,7 +19,7 @@
         ✔ write() @started(19-04-18 23:10) @done(19-04-19 00:40) @lasted(1h30m19s)
         ✔ lseek() @started(19-04-18 20:17) @done(19-04-18 20:35) @lasted(18m15s)
         ✔ cat() @started(19-04-18 21:50) @done(19-04-18 22:22) @lasted(32m46s)
-        ☐ cp() @critical 
+        ✔ cp() @started(19-04-19 00:43) @done(19-04-19 01:19) @lasted(36m36s)
         ☐ mv() @critical 
         ✔ pfd() @done(19-04-18 18:46)
         ✔ touch() @done(19-04-16 17:23)

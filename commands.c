@@ -3,11 +3,11 @@
 //Globals
 
 char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "touch", "stat", "chmod", "open", "close", 
-                "lseek", "pfd", "read", "cat", "write", "quit", "debug_on", "debug_off", NULL};
+                "lseek", "pfd", "read", "cat", "write", "cp", "quit", "debug_on", "debug_off", NULL};
 int (*fptr[])(char*, char*) = {(int *)ls, (int *)pwd, (int *)cd, (int *)mk_dir, (int *)creat_file, (int *)rm_dir, (int *)rm_file, (int*)mylink, 
                                 (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int*)my_touch, (int*)my_stat, (int*)my_chmod, (int *)my_open, 
-                                (int *)my_close, (int *)my_lseek, (int *)pfd, (int *)my_read, (int *)my_cat, (int *)my_write, (int *)quit, 
-                                (int *)debug_on, (int *)debug_off};
+                                (int *)my_close, (int *)my_lseek, (int *)pfd, (int *)my_read, (int *)my_cat, (int *)my_write, (int *)my_cp,
+                                (int *)quit, (int *)debug_on, (int *)debug_off};
 
 int findCommand(char *command)
 {
@@ -1885,7 +1885,7 @@ int readFile(int fd, char *lbuf, int numBytes)
         }
     }
 
-    printf("Read in %d bytes from file descriptor %d\n", count, fd);
+    if(DEBUG){printf("Read in %d bytes from file descriptor %d\n", count, fd);}
     return count;
 }
 
@@ -1941,6 +1941,11 @@ void my_write(char* fileDescriptor)
     if(fd < 0 || fd >= NFD) //Check if file descriptor is out of range
     {
         printf("File descriptor %d is out of range\n", fd);
+        return;
+    }
+    else if(running->fd[fd] == 0)
+    {
+        printf("No file descriptor allocated for %d\n", fd);
         return;
     }
 
@@ -2117,9 +2122,76 @@ int writeFile(int fd, char lbuf[], int numBytes)
 
     //Mark inode dirty
     oftp->mptr->dirty = 1;
-    printf("Wrote %d bytes into file descriptor fd=%d\n", count, fd);
+    if(DEBUG){printf("Wrote %d bytes into file descriptor fd=%d\n", count, fd);}
     return count;
 
+}
+
+void my_cp(char* src, char* dest)
+{
+    int fd, gd, ino, n;
+    char temp[256], fds[3];
+    MINODE *mip;
+
+    strcpy(temp, dest);
+
+    if(checkArg(src))
+    {
+        printf("Please provide a source and destination file\n");
+        return;
+    }
+    else if(checkArg(dest))
+    {
+        printf("Please provide a destination file\n");
+        return;
+    }
+
+    fd = my_open("R", src); //Open file for read
+
+    if(fd == -1) //Error opening source file
+    {
+        printf("Error opening source file\n");
+        return;
+    }
+
+    ino = getino(dest); //Look to see if file exists
+
+    if(ino == 0) //Could not find file
+    {
+        creat_file(dest); //Create the file
+        ino = getino(dest); //Search to see if new file was created
+
+        if(ino == 0) //Error creating file
+        {
+            printf("Error creating file\n", dest);
+            return;
+        }
+        
+        if(DEBUG){printf("Created file successfully\n");}
+    }
+
+    gd = my_open("W", temp);
+
+    if(gd == -1) //Error opening destination file
+    {
+        printf("Error opening destination file\n");
+        return;
+    }
+
+    while(n = readFile(fd, buf, BLKSIZE))
+    {
+        writeFile(gd, buf, n);
+        n = readFile(fd, buf, BLKSIZE);
+    }
+
+    memset(fds, 0, 3);
+    sprintf(fds, "%d", fd);
+    my_close(fds);
+
+    memset(fds, 0, 3);
+    sprintf(fds, "%d", gd);
+    my_close(fds);
+    
 }
 
 void quit()
