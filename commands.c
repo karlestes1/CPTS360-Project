@@ -297,7 +297,7 @@ void mk_dir(char* path)
     int pino; //Keeps track of parent inode
     MINODE* pip; //Keeps track of parents info
 
-    if(path[0] == NULL)
+    if(checkArg(path))
     {
         printf("Please provide a name for the new directory\n");
         return;
@@ -394,7 +394,7 @@ void creat_file(char *path)
     int pino; //Keeps track of parent inode
     MINODE* pip; //Keeps track of parents info
 
-    if(path[0] == NULL)
+    if(checkArg(path))
     {
         printf("Please provide a name for the new file\n");
         return;
@@ -581,7 +581,7 @@ void rm_dir(char* path)
     //printf("In rmdir\n");
     MINODE *mip = NULL;
 
-    if(*path == NULL) //No path was provided
+    if(checkArg(path)) //No path was provided
     {
         printf("Please provide a directory to delete\n");
         return;
@@ -806,7 +806,7 @@ void rm_file(char* path)
     //printf("In rmdir\n");
     MINODE *mip = NULL;
 
-    if(*path == NULL) //No path was provided
+    if(checkArg(path)) //No path was provided
     {
         printf("Please provide a file to delete\n");
         return;
@@ -905,12 +905,12 @@ void mylink(char* oldname, char* newname)
     memset(parents, 0, 256);
     memset(newlink, 0, 256);
 
-    if(oldname == NULL || *oldname == NULL) //No name provided
+    if(checkArg(oldname)) //No name provided
     {
         printf("Please provided a file to link\n");
         return;
     }
-    else if(newname == NULL || *newname == NULL)
+    else if(checkArg(newname))
     {
         printf("Please provided a name for the new file\n");
         return;
@@ -1003,7 +1003,7 @@ void myunlink(char* pathname)
     memset(child, 0, 256);
     memset(parents, 0, 256);
 
-    if(pathname == NULL || *pathname == NULL) //No file path was provided
+    if(checkArg(pathname)) //No file path was provided
     {
         printf("You need to tell me what file to unlink\n");
         return;
@@ -1071,13 +1071,13 @@ void mysymlink(char* oldname, char* newname)
     memset(newlink, 0, 256);
 
     //Check to make sure arguments were provided
-    if(oldname == NULL || *oldname == NULL)
+    if(checkArg(oldname))
     {
         printf("Please provide a filename to link from\n");
         return;
     }
 
-    if(newname == NULL || *newname == NULL)
+    if(checkArg(newname))
     {
         printf("Please provide a filename to link to\n");
         return;
@@ -1133,7 +1133,7 @@ void myreadlink(char* link)
     int ino;
     MINODE *mip;
 
-    if(link == NULL || *link == NULL)
+    if(checkArg(link))
     {
         printf("Please provide a pathname to a link to read\n");
         return;
@@ -1164,7 +1164,7 @@ void myreadlink_nonewline(char* link)
     int ino;
     MINODE *mip;
 
-    if(link == NULL || *link == NULL)
+    if(checkArg(link))
     {
         printf("Please provide a pathname to a link to read\n");
         return;
@@ -1195,7 +1195,7 @@ void my_touch(char* filename)
 {
     int ino;
     MINODE* mip;
-    if(filename == NULL || *filename == NULL) //Check if file exists
+    if(checkArg(filename)) //Check if file exists
     {
         printf("Please provide a file to touch\n");
         return;
@@ -1236,7 +1236,7 @@ void my_stat(char* filename)
     permissionOctal[0] = permissionOctal[1] = permissionOctal[2] = 0;
 
 
-    if(filename == NULL || *filename == NULL) //No provided path
+    if(checkArg(filename)) //No provided path
     {
         printf("Please provide the name of a file to stat\n");
         return;
@@ -1348,7 +1348,7 @@ void my_chmod(char* mode, char* filename)
     bool rd = false, wr = false, ex = false;
 
 
-    if(mode == NULL || *mode == NULL)
+    if(checkArg(mode))
     {
         printf("Please provide a mode value\n");
         return;
@@ -1362,7 +1362,7 @@ void my_chmod(char* mode, char* filename)
         return;
     }
 
-    if(filename == NULL || *filename == NULL)
+    if(checkArg(filename))
     {
         printf("Please provide a path name\n");
         return;
@@ -1465,12 +1465,12 @@ int my_open(char* mode, char* filename)
 
     if(DEBUG){printf("===== Inside my_open(char* mode=%s, char* filename=%s) =====\n", mode, filename);}
 
-    if(mode == NULL || *mode == NULL) //No mode provided
+    if(checkArg(mode)) //No mode provided
     {
         printf("Please a file and a mode with which to open said file\n");
         return -1;
     }
-    if(filename == NULL || *filename == NULL) //No filename provided
+    if(checkArg(filename)) //No filename provided
     {
         printf("Please provide the name of file to open\n");
         return -1;
@@ -1626,7 +1626,7 @@ void my_close(char* fileDescriptor)
 
     if(DEBUG){printf("===== Inside my_close(int fd=%s) =====\n", fd);}
 
-    if(fileDescriptor == NULL || *fileDescriptor == NULL) //No argument provided
+    if(checkArg(fileDescriptor)) //No argument provided
     {
         printf("Please provide a file descriptor to close\n");
         return;
@@ -1663,9 +1663,42 @@ void my_close(char* fileDescriptor)
     return;
 }
 
-int my_lseek(int fd, int position)
+int my_lseek(char* fileDescriptor, char* position)
 {
-    printf("Coming soon to a computer near you...\n");
+    int fd, pos, origPos;
+
+    if(checkArg(fileDescriptor)) //No file descriptor passed
+    {
+        printf("Please provide a file descriptor");
+        return;
+    }
+    else if(checkArg(position)) //No new position passed
+    {
+        printf("Please provide a position to move offset too\n");
+        return;
+    }
+
+    fd = atoi(fileDescriptor);
+    pos = atoi(position);
+
+    if(fd < 0 || fd >= NFD) //Check if fd is out of range
+    {
+        printf("File descriptor %d is out of range\n", fd);
+        return;
+    }
+
+    if(position < 0 || position > running->fd[fd]->mptr->INODE.i_size) //Check if position is our of range
+    {
+        printf("New position is out of range\n", pos);
+    }
+ 
+    origPos = running->fd[fd]->offset; //Get current offset
+    running->fd[fd]->offset = pos; //Update offset
+
+    if(DEBUG){printf("===== Changes offset of proc[%d]->fd[%d] from %d to %d =====\n", running->pid, fd, origPos, pos);}
+
+    return origPos; //Return original offset
+
 }
 
 void pfd()
@@ -1709,6 +1742,8 @@ void pfd()
         printf("[%d, %d]\n", running->fd[i]->mptr->dev, running->fd[i]->mptr->ino);
     }
 }
+
+
 
 void quit()
 {

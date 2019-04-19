@@ -428,3 +428,10 @@ void my_dup2(char* fileDescriptor, char* otherFileDescriptor)
 
   return;
 }
+
+bool checkArg(char* arg)
+{
+  if(arg == NULL || *arg == NULL)
+    return true;
+  return false;
+}

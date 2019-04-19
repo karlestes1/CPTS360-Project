@@ -132,7 +132,7 @@ int my_open(char* mode, char* filename);
 void my_close(char* fileDescriptor);
 
 //Changes the offset of the file descriptor to a certain position
-int my_lseek(int fd, int position);
+int my_lseek(char* fileDescriptor, char* position);
 
 //Prints all currently open file descriptors, as well as mode, offset, and INODE
 void pfd();

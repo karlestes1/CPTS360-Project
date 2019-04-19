@@ -88,4 +88,8 @@ extern void my_close(char* fileDescriptor);
 //Duplicates fd[fd] into fd[gd], closing fd[gd] if it's currently open
 void my_dup2(char* fileDescriptor, char* otherFileDescriptor);
 
+//Checks if an argument is null or first character is null
+//Returns true if this is the case, false otherwise
+bool checkArg(char* arg);
+
 #endif
