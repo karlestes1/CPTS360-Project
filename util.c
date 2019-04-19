@@ -354,3 +354,45 @@ void closeAllFiles()
     }
   }
 }
+
+void my_dup(char* fileDescriptor)
+{
+  int fd;
+
+  if(fileDescriptor == NULL || *fileDescriptor == NULL) //No argument passed
+  {
+    printf("No file desciptor passed\n");
+    return;
+  }
+
+  fd = atoi(fileDescriptor); //Convert argument to int
+
+  if(fd < 0 || fd > NFD) //Descriptor out of bounds
+  {
+    printf("File descriptor %d is out of bounds\n", fd);
+    return;
+  }
+
+  if(DEBUG){printf("Duplicating %d in proc[%d]\n", fd, running->pid);}
+
+  for(int i = 0; i < NFD; i++)
+  {
+    if(running->fd[i] == NULL) //Found where to insert
+    {
+      running->fd[i] = running->fd[fd];
+      running->fd[i]->refCount++; //Increment refcount by 1
+      return;
+    }
+  }
+
+  printf("No more room to open file under current process\n"); //Only reaches if descriptor isn't duplicated
+
+
+}
+
+void my_dup2(char* fileDescriptor, char* otherFileDescriptor)
+{
+  int fd, gd;
+
+  
+}

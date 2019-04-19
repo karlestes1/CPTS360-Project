@@ -78,4 +78,10 @@ void mytruncate(MINODE* mip);
 //Deallocates the allocated OFT
 void closeAllFiles();
 
+//Duplicates fd[fd] into the first empty slot of fd[]
+void my_dup(char* fileDescriptor);
+
+//Duplicates fd[fd] into fd[gd], closing fd[gd] if it's currently open
+void my_dup2(char* fileDescriptor, char* otherFileDescriptor);
+
 #endif

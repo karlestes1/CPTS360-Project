@@ -23,6 +23,8 @@
         ✔ pfd() @critical @today @done(19-04-18 18:46)
         ✔ touch() @done(19-04-16 17:23)
         ☐ update printMenu() @low 
+        ✔ dup @done(19-04-18 19:10)
+        ☐ dup2 @started(19-04-18 19:10)
 
     Level 3:
         ☐ mount() @high 
