@@ -1724,7 +1724,7 @@ void quit()
     }
 
     //Handle all open files
-    
+    closeAllFiles();
 
     if(DEBUG){printf("Quitting the program\n");}
     exit(1);

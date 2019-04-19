@@ -21,7 +21,7 @@ extern char *GREEN, *NORMAL, *RED, *LAVENDER, *PURPLE, *DARKBLUE, *BLUE, *YELLOW
 extern bool DEBUG; //Used to turn debugging on and off
 
 //Gets the data block from the device at the specified blk number
-//Returns 0 if block cannot be grabbed
+//Returns 0 if block  cannot be grabbed
 int get_block(int dev, int blk, char *buf);
 
 //Puts the passed buffer into the specified blk number on the provided dev
@@ -73,5 +73,9 @@ int getino(char *path);
 
 //Deallocates all of the data blocks of INODE
 void mytruncate(MINODE* mip);
+
+//Loops through all possible processes and closes any open files
+//Deallocates the allocated OFT
+void closeAllFiles();
 
 #endif

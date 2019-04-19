@@ -339,3 +339,18 @@ void mytruncate(MINODE* mip)
   }
 }
 
+void closeAllFiles()
+{
+  for(int i = 0; i < NPROC; i++) //Loop through all procs
+  {
+    for(int j = 0; j < NFD; j++) //Loop through all possible file descriptors
+    {
+      if (proc[i].fd[j] != NULL) //A file is open
+      {
+        if(DEBUG){printf("Closing proc[%d].fd[%d]\n", i, j);}
+        iput(proc[i].fd[j]->mptr); //Put the MINODE
+        free(proc[i].fd[j]);
+      }
+    }
+  }
+}
