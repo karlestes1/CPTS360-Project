@@ -1634,7 +1634,7 @@ void my_close(char* fileDescriptor)
 
     fd = atoi(fileDescriptor); 
 
-    if(fd < 0 || fd > NFD) //file descriptor is out of range
+    if(fd < 0 || fd >= NFD) //file descriptor is out of range
     {
         printf("File descriptor %d is out of range\n", fd);
         return;

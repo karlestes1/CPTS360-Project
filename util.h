@@ -81,6 +81,10 @@ void closeAllFiles();
 //Duplicates fd[fd] into the first empty slot of fd[]
 void my_dup(char* fileDescriptor);
 
+//my_close() is located in the command.c/command.h file. It is defined here
+//with extern so that it may be used in my_dup2()
+extern void my_close(char* fileDescriptor);
+
 //Duplicates fd[fd] into fd[gd], closing fd[gd] if it's currently open
 void my_dup2(char* fileDescriptor, char* otherFileDescriptor);
 

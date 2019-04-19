@@ -367,7 +367,7 @@ void my_dup(char* fileDescriptor)
 
   fd = atoi(fileDescriptor); //Convert argument to int
 
-  if(fd < 0 || fd > NFD) //Descriptor out of bounds
+  if(fd < 0 || fd >= NFD) //Descriptor out of bounds
   {
     printf("File descriptor %d is out of bounds\n", fd);
     return;
@@ -394,5 +394,37 @@ void my_dup2(char* fileDescriptor, char* otherFileDescriptor)
 {
   int fd, gd;
 
-  
+  if(fileDescriptor == NULL || *fileDescriptor == NULL) //No arguments pass
+  {
+    printf("Missing both file descriptor arguments\n");
+    return;
+  }
+  else if(otherFileDescriptor == NULL || *otherFileDescriptor == NULL) //Missing fd to copy to
+  {
+    printf("Missing file descriptor to copy to\n");
+    return;
+  }
+
+  //Convert arguments to integers
+  fd = atoi(fileDescriptor);
+  gd = atoi(otherFileDescriptor);
+
+  if(fd < 0 || fd >= NFD) //fd is out of range
+  {
+    printf("File descriptor %d is out of range\n", fd);
+    return;
+  }
+  else if(gd < 0 || gd >= NFD) //gd is out of range
+  {
+    printf("File descriptor %d is out of range\n", gd);
+    return;
+  }
+
+  if(running->fd[gd] != NULL)
+    my_close(otherFileDescriptor);
+
+  running->fd[gd] = running->fd[fd]; //Duplicate the file descriptor
+  running->fd[gd]->refCount++; //Increase ref count
+
+  return;
 }
