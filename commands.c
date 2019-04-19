@@ -2,10 +2,10 @@
 
 //Globals
 
-char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "touch", "stat", "chmod", "quit", "debug_on", "debug_off", NULL};
+char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "touch", "stat", "chmod", "open", "close", "lseek", "pfd", "quit", "debug_on", "debug_off", NULL};
 int (*fptr[])(char *, char*) = {(int *)ls, (int *)pwd, (int *)cd, (int *)mk_dir, (int *)creat_file, (int *)rm_dir, (int *)rm_file, (int*)mylink, 
-                                (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int*)my_touch, (int*)my_stat, (int*)my_chmod, (int *)quit, 
-                                (int *)debug_on, (int *)debug_off};
+                                (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int*)my_touch, (int*)my_stat, (int*)my_chmod, (int *)my_open, 
+                                (int *)my_close, (int *)my_lseek, (int *) pfd, (int *)quit, (int *)debug_on, (int *)debug_off};
 
 int findCommand(char *command)
 {
@@ -1453,9 +1453,261 @@ void printMenu()
     printf("|Level 1: ls, pwd, mkdir, creat, rmdir, rm |\n");
     printf("|         link, symlink, unlink, readlink  |\n");
     printf("|         stat, touch, chmod               |\n");
-    printf("|Level 2: Coming...                        |\n");
+    printf("|Level 2: open, close, lseek, pfd          |\n");
     printf("|Level 3: Coming...                        |\n");
     printf("|==========================================|\n");
+}
+
+int my_open(char* mode, char* filename)
+{
+    int ino, md, fd;
+    MINODE *mip;
+
+    if(DEBUG){printf("===== Inside my_open(char* mode=%s, char* filename=%s) =====\n", mode, filename);}
+
+    if(mode == NULL || *mode == NULL) //No mode provided
+    {
+        printf("Please a file and a mode with which to open said file\n");
+        return -1;
+    }
+    if(filename == NULL || *filename == NULL) //No filename provided
+    {
+        printf("Please provide the name of file to open\n");
+        return -1;
+    }
+
+    //Verify mode is valid
+    if(strcmp(mode, "R") == 0)
+        md = 0;
+    else if(strcmp(mode, "0") == 0)
+        md = 0;
+    else if(strcmp(mode, "W") == 0)
+        md = 1;
+    else if(strcmp(mode, "1") == 0)
+        md = 1;
+    else if(strcmp(mode, "RW") == 0)
+        md = 2;
+    else if(strcmp(mode, "2") == 0)
+        md = 2;
+    else if(strcmp(mode, "APPEND") == 0)
+        md = 3;
+    else if(strcmp(mode, "3") == 0)
+        md = 3;
+    else //Invalid moded
+    {
+        printf("Provided mode: %s is invalid\n", mode);
+        return -1;
+    }
+
+    if(DEBUG){printf("Mode Code = %d", md);}
+    //Check if file exists
+    ino = getino(filename);
+
+    if(ino == 0) //Could not find file
+    {
+        printf("Could not find %s\n", filename);
+        return -1;
+    }
+
+    if(filename[0] == '/') //Get device from root
+        mip = iget(root->dev, ino);
+    else //Get device from running proc
+        mip = iget(running->cwd->dev, ino);
+
+    if(!S_ISREG(mip->INODE.i_mode)) //Can't open anything but a regular file
+    {
+        printf("Cannot open anything except a regular file\n");
+        return -1;
+    }
+
+    //Check to see if file is already open for W, RW, or APPEND (Multiple R's okay)
+    for(int i = 0; i < 16; i++)
+    {
+        if(running->fd[i] == NULL || running->fd[i]->mptr->ino != mip->ino) //Skip any unallocated file descriptors or non matching inodes
+            continue;
+
+        switch(running->fd[i]->mode)
+        {
+            case 0:
+                break;
+
+            case 1:
+                printf("File already open for W mode\n");
+                return -1;
+
+            case 2:
+                printf("File already open for RW mode\n");
+                return -1;
+
+            case 3:
+                printf("File already open for APPEND mode\n");
+                return -1;
+
+            default:
+                printf("Unknown mode detected\n");
+                return -1;
+        }
+    }
+
+    //Look for an unallocated file descript and allocate it
+    for(int i = 0; i < 16; i++)
+    {
+        if(running->fd[i] == NULL) //Nothing allocated
+        {
+            if(DEBUG){printf("Allocating new file descriptor at PID:%d, fd[%d]\n", running->pid, i);}
+            running->fd[i] = (OFT *)malloc(sizeof(OFT)); //Allocate new memory for Open File Table
+
+            if(running->fd[i] != NULL) //Memory was allocated successfully
+            {
+                fd = i;
+                running->fd[i]->mode = md; //Set mode
+                running->fd[i]->mptr = mip; //Set MINODE
+                running->fd[i]->refCount = 1; //Set reference counter
+
+                //Set offsett accordingly
+                switch(md)
+                {
+                    case 0: //Read mode
+                        running->fd[i]->offset = 0;
+                        break;
+                    
+                    case 1: //Write mode
+                        mytruncate(mip); //Erase file
+                        running->fd[i]->offset = 0;
+                        break;
+
+                    case 2: //Read Write mode
+                        running->fd[i]->offset = 0;
+                        break;
+
+                    case 3: //Append mode
+                        running->fd[i]->offset = mip->INODE.i_size;
+                        break;
+
+                    default: //Invalid mode
+                        printf("Invalid mode\n");
+                        free(running->fd[i]); //Delete allocated memory
+                        running->fd[i] = NULL;
+                        return -1;
+                }
+
+                break;
+
+            }
+            else
+            {
+                printf("Memory allocation for new file descriptor failed\n");
+                return -1;
+            }
+        }
+    }
+
+    //Update INODE atime
+    mip->INODE.i_atime = time(0L);
+    if(DEBUG){printf("Updated atime for [%d, %d]\n", mip->dev, mip->ino);}
+
+    if(md == 1 || md == 2 || md == 3) //Update mtime for R|RW|APPEND
+    {
+        mip->INODE.i_mtime = time(0L);
+        if(DEBUG){printf("Updated mtime for [%d, %d]\n", mip->dev, mip->ino);}
+    }
+
+    mip->dirty = 1; //Mark INODE dirty
+
+    return fd; //Return file descriptor
+    
+}
+
+void my_close(char* fileDescriptor)
+{
+    int fd;
+    OFT *oftp; 
+    MINODE *mip;
+
+    if(DEBUG){printf("===== Inside my_close(int fd=%s) =====\n", fd);}
+
+    if(fileDescriptor == NULL || *fileDescriptor == NULL) //No argument provided
+    {
+        printf("Please provide a file descriptor to close\n");
+        return;
+    }
+
+    fd = atoi(fileDescriptor); 
+
+    if(fd < 0 || fd > NFD) //file descriptor is out of range
+    {
+        printf("File descriptor %d is out of range\n", fd);
+        return;
+    }
+
+    if(running->fd[fd] == NULL) //File descriptor does not point to open file
+    {
+        printf("File descriptor %d not currently in use for process %d\n", fd, running->pid);
+        return;
+    }
+
+    oftp = running->fd[fd];
+    running->fd[fd] = NULL; //Let this process free up the file descriptor
+
+    oftp->refCount--; //Decrement reference counter
+
+    if(oftp->refCount > 0) //File is still open elsewhere
+        return;
+    
+    //If last reference to open file, put the mip and and deallocate oftp
+    mip = oftp->mptr;
+
+    iput(mip);
+    free(oftp);
+
+    return;
+}
+
+int my_lseek(int fd, int position)
+{
+    printf("Coming soon to a computer near you...\n");
+}
+
+void pfd()
+{
+    if(DEBUG){printf("===== Inside pfd() =====\n");}
+
+    printf(" fd \tmode\toffset\t INODE\n");
+    printf("----\t----\t------\t-------\n");
+    for(int i = 0; i < NFD; i++)
+    {
+        if(running->fd[i] == NULL) //No file descriptor
+            continue;
+        
+        //Print Descriptor
+        printf(" %2d \t", i);
+
+        //Print mode
+        switch(running->fd[i]->mode)
+        {
+            case 0:
+                printf("READ\t");
+                break;
+            case 1:
+                printf("WRITE\t");
+                break;
+            case 2:
+                printf("R/W\t");
+                break;
+            case 3:
+                printf("APPEND\t");
+                break;
+            default:
+                printf("UNKNOWN\t");
+                break;
+        }
+
+        //print offset
+        printf("%6d\t", running->fd[i]->offset);
+
+        //Print INODE
+        printf("[%d, %d]\n", running->fd[i]->mptr->dev, running->fd[i]->mptr->ino);
+    }
 }
 
 void quit()
@@ -1470,6 +1722,9 @@ void quit()
             iput(&minode[i]);
         }
     }
+
+    //Handle all open files
+    
 
     if(DEBUG){printf("Quitting the program\n");}
     exit(1);

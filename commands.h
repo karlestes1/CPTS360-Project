@@ -123,6 +123,20 @@ void my_chmod(char* mode, char* filename);
 //Prints out the menu of all the commands
 void printMenu();
 
+//Opens a file with the specific mode
+//Modes include R(0)|W(1)|RW(2)|APPEND(3)
+    //Either the R|W|RW|APPEND or 0|1|2|3 may be used to denote mode
+int my_open(char* mode, char* filename);
+
+//If the passed file descriptor is open, closes the file
+void my_close(char* fileDescriptor);
+
+//Changes the offset of the file descriptor to a certain position
+int my_lseek(int fd, int position);
+
+//Prints all currently open file descriptors, as well as mode, offset, and INODE
+void pfd();
+
 //Quit the program
 //iput() on all minodes with (refCount > 0 && DIRTY);
 void quit();
