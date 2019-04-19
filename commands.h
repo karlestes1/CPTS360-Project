@@ -143,7 +143,7 @@ void pfd();
 void my_read(char* fileDescriptor, char* numBytes);
 
 //Actually reads in the specified number of bytes into the file
-void readFile(int fd, char *lbuf, int numBytes);
+int readFile(int fd, char *lbuf, int numBytes);
 
 //Acts just as linux cat does
 void my_cat(char* filename);

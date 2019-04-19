@@ -1801,7 +1801,7 @@ void my_read(char* fileDescriptor, char* numBytes)
 
 }
 
-void readFile(int fd, char *lbuf, int numBytes)
+int readFile(int fd, char *lbuf, int numBytes)
 {
     int blk, start, remain, avaliable, *rBlk;
     int diblk, diblkpos, count = 0;
