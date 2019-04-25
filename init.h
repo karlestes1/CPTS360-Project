@@ -1,3 +1,4 @@
+/*********** init.h file ****************/
 #ifndef _INITH_
 #define _INITH_
 

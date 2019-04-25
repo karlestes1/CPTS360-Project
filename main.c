@@ -1,9 +1,9 @@
 
-/* * * * * * * * * * *
-* Karl Estes		 *
-* ID: 11467854	   *
-* CPTS 360: Lab7	 *
-* * * * * * * * * * */
+/* * * * * * * * * * * * * * *
+* Karl Estes		         *
+* ID: 11467854	             *
+* CPTS 360: Final Project	 *
+* * * * * * * * * * * * * * */
 #include "init.h"
 #include "commands.h" 
 

@@ -1,3 +1,4 @@
+/*********** init.c file ****************/
 #include "init.h"
 
 void init()
