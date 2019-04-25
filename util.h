@@ -21,6 +21,8 @@ extern char   buf[BLKSIZE];
 extern char *GREEN, *NORMAL, *RED, *LAVENDER, *PURPLE, *DARKBLUE, *BLUE, *YELLOW, *BRIGHT;
 extern bool DEBUG; //Used to turn debugging on and off
 
+extern int readFile(int fd, char *lbuf, int numBytes);
+
 //Gets the data block from the device at the specified blk number
 //Returns 0 if block  cannot be grabbed
 int get_block(int dev, int blk, char *buf);
@@ -92,5 +94,12 @@ void my_dup2(char* fileDescriptor, char* otherFileDescriptor);
 //Checks if an argument is null or first character is null
 //Returns true if this is the case, false otherwise
 bool checkArg(char* arg);
+
+//Will get a block but will do so from your filetable
+//reads it into lbuf
+void my_get_block(int fd, int blk, char* lbuf);
+
+//Displays all current entries in the mount table
+void displayMountTable();
 
 #endif

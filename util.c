@@ -442,3 +442,42 @@ bool checkArg(char* arg)
     return true;
   return false;
 }
+
+void my_get_block(int fd, int blk, char* lbuf)
+{
+  int currentOffsetBlk;
+  //Check if file descriptor is open
+  if(running->fd[fd] != NULL) //It is allocated
+  {
+
+    currentOffsetBlk = running->fd[fd]->offset / BLKSIZE + 1;
+
+    for(int i = currentOffsetBlk; i <= blk; i++) //Last run will be block you want
+    {
+      readFile(fd, lbuf, BLKSIZE);
+    }
+  }
+}
+
+void displayMountTable()
+{
+  bool empty = true;
+
+  for(int i = 0; i < NMOUNT; i++)
+  {
+    if(mountTable[i].dev != 0) //Something is mounted
+    {
+      empty = false;
+
+      printf("     Mount Name: %s\n", mountTable[i].mount_name);
+      printf("Mount File Name: %s\n", mountTable[i].name);
+      printf("   Mount Device: %d\n", mountTable[i].dev);
+      printf("  Mounted Inode: %d\n", mountTable[i].mounted_inode->ino);
+    }
+  }
+
+  if(empty) //No mount loaded
+  {
+    printf("No secondary file systems mounted\n");
+  }
+}

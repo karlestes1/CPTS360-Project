@@ -164,6 +164,13 @@ bool my_cp(char* src, char* dest);
 //Acts just at mv does on Linux
 void my_mv(char* src, char* dest);
 
+//Mounts a filesystem to a specific mount point
+//If no filesystem is provided, lists the current mounted file system
+void my_mount(char* filesystem, char* mountpoint);
+
+//Unmounts a file system if it's no longer active
+void my_umount(char* filesys);
+
 //Quit the program
 //iput() on all minodes with (refCount > 0 && DIRTY);
 void quit();
