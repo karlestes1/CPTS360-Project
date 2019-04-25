@@ -28,8 +28,8 @@
         ✔ dup2 @started(19-04-18 19:10) @done(19-04-18 20:16) @lasted(1h6m55s)
 
     Level 3:
-        ☐ mount() @high 
-        ☐ unmount() @high
+        ✔ mount() @high @done(19-04-24 23:01)
+        ✔ unmount() @high @done(19-04-24 23:01)
         ☐ file permission checking @low 
         ☐ update printMenu() @low 
     

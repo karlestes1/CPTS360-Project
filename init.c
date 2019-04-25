@@ -52,6 +52,14 @@ void init()
     //Initialize global root
     root = NULL;
 
+    //Intialize mount table
+    for(int i = 0; i < NMOUNT; i++)
+    {
+        mountTable[i].dev = 0; //Device 0 means nothing is mounted
+        memset(mountTable[i].mount_name, 0, 64);
+        memset(mountTable[i].name, 0, 256);
+    }
+
     printf("Processes and Data Structures Initialized\n");
 
 }

@@ -3,11 +3,11 @@
 //Globals
 
 char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "touch", "stat", "chmod", "open", "close", 
-                "lseek", "pfd", "read", "cat", "write", "cp", "mv", "quit", "debug_on", "debug_off", NULL};
+                "lseek", "pfd", "read", "cat", "write", "cp", "mv", "mount", "unmount", "quit", "debug_on", "debug_off", NULL};
 int (*fptr[])(char*, char*) = {(int *)ls, (int *)pwd, (int *)cd, (int *)mk_dir, (int *)creat_file, (int *)rm_dir, (int *)rm_file, (int*)mylink, 
                                 (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int*)my_touch, (int*)my_stat, (int*)my_chmod, (int *)my_open, 
                                 (int *)my_close, (int *)my_lseek, (int *)pfd, (int *)my_read, (int *)my_cat, (int *)my_write, (int *)my_cp,
-                                (int *)my_mv, (int *)quit, (int *)debug_on, (int *)debug_off};
+                                (int *)my_mv, (int *)my_mount, (int *)my_umount, (int *)quit, (int *)debug_on, (int *)debug_off};
 
 int findCommand(char *command)
 {
@@ -1823,7 +1823,7 @@ int readFile(int fd, char *lbuf, int numBytes)
     OFT *oftp = running->fd[fd];
     char mybuf[BLKSIZE], *cp, *cpto = lbuf;
 
-    if(running->fd[fd]->mode != 0) //Not open for read
+    if(running->fd[fd]->mode != 0 && running->fd[fd]->mode != 2) //Not open for read
     {
         printf("File descriptor %d is not in READ mode\n", fd);
         return -1;
@@ -2427,6 +2427,165 @@ void quit()
 
     if(DEBUG){printf("Quitting the program\n");}
     exit(1);
+}
+
+void my_mount(char* filesystem, char* mountpoint)
+{
+    int index = -1, fd, ino;
+    char mybuf[BLKSIZE];
+    char fdbuf[3];
+    MINODE *mip;
+
+    memset(fdbuf, 0, 3);
+
+    if(checkArg(filesystem)) //No argument provided so list current mounted
+    {
+        displayMountTable(); 
+        return;
+    }
+    else if(checkArg(mountpoint)) //Filesystem provided but no mount point
+    {
+        printf("Please provide a path to mount %s to\n", filesystem);
+    }
+
+    //Check wether filesystem is currently mounted
+    for(int i = 0; i < NMOUNT; i++)
+    {
+        if(strcmp(filesystem, mountTable[i].mount_name) == 0)
+        {
+            printf("Filesystem %s is already mounted\n", filesystem);
+            return; //Exit
+        }
+        else if (index == -1 && mountTable[i].dev == 0) //No free MOUNT found yet
+        {
+            index = i;
+        }
+        
+    }
+
+    if(index == -1) //Mount table is full
+    {
+        printf("No more space to mount a filesystem\n");
+        return;
+    }
+
+    //Check if mount point exists
+    ino = getino(mountpoint);
+
+    if(ino == 0) //Could not find mountpoint
+    {
+        printf("Unable to find mountpoint inode\n");
+        return;
+    }
+
+    mip = iget(running->cwd->dev, ino);
+
+    if(!S_ISDIR(mip->INODE.i_mode)) //Check if mount point is a dir
+    {
+        printf("Mount point must be a directory\n");
+        iput(mip);
+        return;
+    }
+
+    //Check if busy by another proc
+    for(int i = 0; i < NPROC; i++)
+    {
+        if(proc[i].status != FREE) //Check if proc is active
+        {
+            if(mip->ino == proc[i].cwd->ino) //mount point is in use
+            {
+                printf("Mount point is currently busy\n");
+                iput(mip);
+                return;
+            }
+        }
+    }
+    
+
+    fd = my_open("2", filesystem); //Open the filesystem
+
+    if(fd == -1) //Error in opening the file
+    {
+        printf("Error opening %s\n", filesystem);
+        return;
+    }
+
+    //Check wether it is EXT2
+    my_get_block(fd, 1, mybuf);
+
+    sp = (SUPER*)mybuf;
+
+    if(sp->s_magic != EXT2_FS) //EXT2FS system check failed
+    {
+        printf("%sEXT2 File System Check on mount: FAILED%s\n", RED, NORMAL);
+        sprintf(fdbuf, "%d", fd);
+        my_close(fdbuf);
+        return;
+    }
+    printf("%sEXT2 File System Check: OK%s\n", GREEN, NORMAL);
+
+    //If file system passes
+    mountTable[index].dev = fd;
+    mountTable[index].nblocks = sp->s_blocks_count;
+    mountTable[index].ninodes = sp->s_inodes_count;
+
+    //Read in Group Descriptor and record global info
+    my_get_block(fd, 2, mybuf);
+
+    //Copy rest of data over
+    gp = (GD*)mybuf;
+    mountTable[index].bmap = gp->bg_inode_bitmap;
+    mountTable[index].imap = gp->bg_block_bitmap;
+    mountTable[index].mounted_inode = mip;
+    mountTable[index].iblk = mip->ino;
+
+    mip->mounted = 1;
+    mip->mptr = &mountTable[index];
+
+    sprintf(fdbuf, "%d", fd);
+    my_close(fdbuf);
+}
+
+void my_umount(char* filesys)
+{
+    int index = -1;
+
+    if(checkArg(filesys))
+    {
+        printf("Please provide a filesystem name to unmount\n");
+        return;
+    }
+    //Search the mount table to check if filesys is mounted
+    for(int i = 0; i < NMOUNT; i++)
+    {
+        if(strcmp(filesys, mountTable[i].mount_name) == 0) //Found mount
+            index = i;
+    }
+
+    if(index == -1) //Could not find filesystem
+    {
+        printf("Filesystem %s is not mounted\n", filesys);
+        return;
+    }
+
+    //Check if busy
+    for(int i = 0; i < NMINODE; i++)
+    {
+        if(minode[i].dev == mountTable[index].dev)
+        {
+            printf("Mount is still busy\n");
+            return;
+        }
+    }
+
+    //Unmount
+    mountTable[index].mounted_inode->mounted = 0;
+    mountTable[index].mounted_inode->mptr = NULL;
+
+    //Reset mount table
+    mountTable[index].dev = 0;
+    memset(mountTable[index].mount_name, 0, 64);
+    memset(mountTable[index].name, 0, 256);
 }
 
 void debug_on()
