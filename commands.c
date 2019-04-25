@@ -1979,7 +1979,8 @@ int writeFile(int fd, char lbuf[], int numBytes)
     int diblk, diblkpos, count = 0;
     OFT *oftp = running->fd[fd];
     char mybuf[BLKSIZE], *cpto, *cpfrom = lbuf;
-    int *pwBlk, *pwBlk2, wBlk;
+    int *pwBlk, *pwBlk2, wBlk, wBlk2;
+    int *check, *check2;
 
 
     if(oftp->mode == 0) //Can't write in Read mode
@@ -1996,13 +1997,24 @@ int writeFile(int fd, char lbuf[], int numBytes)
         start = oftp->offset % BLKSIZE; //Where in the blk to start writing
         remain = BLKSIZE - start; //How many bytes left in data block
 
+        if(DEBUG){printf("\n blk=%d, start=%d, remain=%d\n", blk, start, remain);}
+
 
         if(blk < 12) //Indirect blocks
         {
             if(oftp->mptr->INODE.i_block[blk] == 0) //No data block allocated
             {
                 oftp->mptr->INODE.i_block[blk] = balloc(oftp->mptr->dev); //Allocate new disk block
-                if(DEBUG){printf("Allocated new direct blk at INODE.i_block[%d]\n", blk);}
+
+                if(oftp->mptr->INODE.i_block[blk] == 0)
+                {
+                    oftp->mptr->dirty = 1;
+                    printf("Ran out of disk blocks to allocate\n");
+                    return;
+                }
+
+                if(DEBUG){printf("Allocated new direct blk %d at INODE.i_block[%d]\n", oftp->mptr->INODE.i_block[blk], blk);}
+                if(DEBUG){getchar();printf("\n\n");}
 
                 //Zero out the blk on the disk
                 get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[blk], mybuf);
@@ -2017,7 +2029,16 @@ int writeFile(int fd, char lbuf[], int numBytes)
             if(oftp->mptr->INODE.i_block[12] == 0) //No indirect block allocated
             {
                 oftp->mptr->INODE.i_block[12] = balloc(oftp->mptr->dev);
-                if(DEBUG){printf("Allocated new indirect blk at INODE.i_block[12]\n");}
+                
+                if(oftp->mptr->INODE.i_block[12] == 0)
+                {
+                    oftp->mptr->dirty = 1;
+                    printf("Ran out of disk blocks to allocate\n");
+                    return;
+                }
+
+                if(DEBUG){printf("Allocated new indirect blk %d, at INODE.i_block[12]\n", oftp->mptr->INODE.i_block[12]);}
+                if(DEBUG){getchar();printf("\n\n");}
 
                 //Zero out the blk on the disk
                 get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[12], mybuf);
@@ -2031,17 +2052,43 @@ int writeFile(int fd, char lbuf[], int numBytes)
             if(*pwBlk == 0) //No block allocated
             {
                 *pwBlk = balloc(oftp->mptr->dev); //Allocate new disk block
+                
+                if(*pwBlk == 0)
+                {
+                    oftp->mptr->dirty = 1;
+                    printf("Ran out of disk blocks to allocate\n");
+                    return;
+                }
+
                 put_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[12], mybuf); //Record newly allocated block in INODE
 
                 if(DEBUG){printf("Allocated new indirect blk %d in INODE.i_block[12]\n", *pwBlk);}
+
+                if(DEBUG){
+                    check = (int *)mybuf;
+                    int i = 1;
+                    while(*check != 0 && check < mybuf + BLKSIZE)
+                    {
+                        printf("%d: %d ", i, *check);
+                        check++;
+                        i++;
+                    }
+                    printf("\n");
+                }
+                if(DEBUG){getchar();printf("\n\n");}
+
+                wBlk = *pwBlk; //Copy block number over
 
                 //Zero out newly allocated block
                 get_block(oftp->mptr->dev, *pwBlk, mybuf);
                 memset(mybuf, 0, BLKSIZE);
                 put_block(oftp->mptr->dev, *pwBlk, mybuf);
             }
-
-            wBlk = *pwBlk;
+            else
+            {
+                wBlk = *pwBlk; //Copy block number over
+            }
+            
 
             if(DEBUG){printf("wBlk=%d\n", wBlk);}
         }
@@ -2049,12 +2096,22 @@ int writeFile(int fd, char lbuf[], int numBytes)
         {
             if(oftp->mptr->INODE.i_block[13] == 0) //No double indirect allocated
             {
+                oftp->mptr->INODE.i_block[13] = balloc(oftp->mptr->dev);
+
+
+                if(oftp->mptr->INODE.i_block[13] == 0)
+                {
+                    oftp->mptr->dirty = 1;
+                    printf("Ran out of disk blocks to allocate\n");
+                    return;
+                }
+
                 get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf);
                 memset(mybuf, 0, BLKSIZE);
                 put_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf);
 
-                if(DEBUG){printf("Allocated new double indirect blk at INODE.i_block[13]\n");}
-
+                if(DEBUG){printf("Allocated new double indirect blk %d at INODE.i_block[13]\n", oftp->mptr->INODE.i_block[13]);}
+                if(DEBUG){getchar();printf("\n\n");}
             }
 
             get_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf); //Get first double indirect
@@ -2068,34 +2125,88 @@ int writeFile(int fd, char lbuf[], int numBytes)
             if(*pwBlk == 0) //No block allocated at that position
             {
                 *pwBlk = balloc(oftp->mptr->dev); //Allocate new disk block
+                
+                if(*pwBlk == 0)
+                {
+                    oftp->mptr->dirty = 1;
+                    printf("Ran out of disk blocks to allocate\n");
+                    return;
+                }
+                wBlk2 = *pwBlk; //Copy block number over
+
+                if(DEBUG){printf("Allocated new double indirect blk %d in INODE.i_block[13]\n", wBlk2);}
+
                 put_block(oftp->mptr->dev, oftp->mptr->INODE.i_block[13], mybuf); //Write parent blk back
 
-                if(DEBUG){printf("Allocated new double indirect blk %d in INODE.i_block[13]\n", *pwBlk);}
+
+                if(DEBUG){
+                    check = (int *)mybuf;
+                    int i = 1;
+                    while(*check != 0 && check < mybuf + BLKSIZE)
+                    {
+                        printf("%d: %d ", i, *check);
+                        check++;
+                        i++;
+                    }
+                    printf("\n");
+                }
+                if(DEBUG){getchar();printf("\n\n");}
 
                 //Zero out newly allocated block
-                get_block(oftp->mptr->dev, *pwBlk, mybuf);
+                get_block(oftp->mptr->dev, wBlk2, mybuf);
                 memset(mybuf, 0, BLKSIZE);
-                put_block(oftp->mptr->dev, *pwBlk, mybuf);
+                put_block(oftp->mptr->dev, wBlk2, mybuf);
             }
+            else
+            {
+                wBlk2 = *pwBlk; //Copy block number over
+            }
+            
 
-            get_block(oftp->mptr->dev, *pwBlk, mybuf); //Get second double indirect
+            get_block(oftp->mptr->dev, wBlk2, mybuf); //Get second double indirect
 
             pwBlk2 = (int *)mybuf + diblkpos;
 
             if(*pwBlk2 == 0) //No block allocated at this position
             {
                 *pwBlk2 = balloc(oftp->mptr->dev); //Allocate new disk block
-                put_block(oftp->mptr->dev, *pwBlk, mybuf); //Write parent blk back
 
-                if(DEBUG){printf("Allocated new double indirect blk %d in blk %d in INODE.i_block[13]\n", *pwBlk2, *pwBlk);}
+                wBlk = *pwBlk2; //Copy block number over
+                if(wBlk == 0) //Ran out of block to allocate
+                {
+                    oftp->mptr->dirty = 1;
+                    printf("Ran out of disk blocks to allocate\n");
+                    return;
+                }
+
+                put_block(oftp->mptr->dev, wBlk2, mybuf); //Write parent blk back
+
+                if(DEBUG){printf("Allocated new double indirect blk %d in blk %d in INODE.i_block[13]\n", wBlk, wBlk2);}
+
+                if(DEBUG){
+                    check = (int *)mybuf;
+                    int i = 1;
+                    while(*check != 0 && check < mybuf + BLKSIZE)
+                    {
+                        
+                        printf("%d: %d ", i, *check);
+                        check++;
+                        i++;
+                    }
+                    printf("\n");
+                }
+                if(DEBUG){getchar();printf("\n\n");}
 
                 //Zero out newly allocated block
-                get_block(oftp->mptr->dev, *pwBlk2, mybuf);
+                get_block(oftp->mptr->dev, wBlk, mybuf);
                 memset(mybuf, 0, BLKSIZE);
-                put_block(oftp->mptr->dev, *pwBlk2, mybuf);
+                put_block(oftp->mptr->dev, wBlk, mybuf);
             }
-
-            wBlk = *pwBlk2;
+            else
+            {
+                wBlk = *pwBlk2; //Copy block number over
+            }
+            
 
             if(DEBUG){printf("wBlk=%d\n", wBlk);}
 
@@ -2195,7 +2306,7 @@ bool my_cp(char* src, char* dest)
     while(n = readFile(fd, buf, BLKSIZE))
     {
         writeFile(gd, buf, n);
-        n = readFile(fd, buf, BLKSIZE);
+        //n = readFile(fd, buf, BLKSIZE);
     }
 
     memset(fds, 0, 3);
