@@ -11,6 +11,7 @@
 MINODE minode[NMINODE];
 MINODE *root;
 PROC   proc[NPROC], *running;
+MOUNT mountTable[NMOUNT];
 char   gpath[256];
 char   *name[64];
 int    nname;

@@ -10,6 +10,7 @@
 extern MINODE minode[NMINODE];
 extern MINODE *root;
 extern PROC   proc[NPROC], *running;
+extern MOUNT mountTable[NMOUNT];
 extern char   gpath[256];
 extern char   *name[64];
 extern int    nname;
