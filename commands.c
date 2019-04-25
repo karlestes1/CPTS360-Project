@@ -3,11 +3,11 @@
 //Globals
 
 char *cmds[] = {"ls", "pwd", "cd", "mkdir", "creat", "rmdir", "rm", "link", "unlink", "symlink", "readlink", "touch", "stat", "chmod", "open", "close", 
-                "lseek", "pfd", "read", "cat", "write", "cp", "mv", "mount", "quit", "debug_on", "debug_off", NULL};
+                "lseek", "pfd", "read", "cat", "write", "cp", "mv", "mount", "unmount", "quit", "debug_on", "debug_off", NULL};
 int (*fptr[])(char*, char*) = {(int *)ls, (int *)pwd, (int *)cd, (int *)mk_dir, (int *)creat_file, (int *)rm_dir, (int *)rm_file, (int*)mylink, 
                                 (int*)myunlink, (int*)mysymlink, (int*)myreadlink, (int*)my_touch, (int*)my_stat, (int*)my_chmod, (int *)my_open, 
                                 (int *)my_close, (int *)my_lseek, (int *)pfd, (int *)my_read, (int *)my_cat, (int *)my_write, (int *)my_cp,
-                                (int *)my_mv, (int *)my_mount, (int *)quit, (int *)debug_on, (int *)debug_off};
+                                (int *)my_mv, (int *)my_mount, (int *)my_umount, (int *)quit, (int *)debug_on, (int *)debug_off};
 
 int findCommand(char *command)
 {
@@ -2546,7 +2546,47 @@ void my_mount(char* filesystem, char* mountpoint)
     my_close(fdbuf);
 }
 
+void my_umount(char* filesys)
+{
+    int index = -1;
 
+    if(checkArg(filesys))
+    {
+        printf("Please provide a filesystem name to unmount\n");
+        return;
+    }
+    //Search the mount table to check if filesys is mounted
+    for(int i = 0; i < NMOUNT; i++)
+    {
+        if(strcmp(filesys, mountTable[i].mount_name) == 0) //Found mount
+            index = i;
+    }
+
+    if(index == -1) //Could not find filesystem
+    {
+        printf("Filesystem %s is not mounted\n", filesys);
+        return;
+    }
+
+    //Check if busy
+    for(int i = 0; i < NMINODE; i++)
+    {
+        if(minode[i].dev == mountTable[index].dev)
+        {
+            printf("Mount is still busy\n");
+            return;
+        }
+    }
+
+    //Unmount
+    mountTable[index].mounted_inode->mounted = 0;
+    mountTable[index].mounted_inode->mptr = NULL;
+
+    //Reset mount table
+    mountTable[index].dev = 0;
+    memset(mountTable[index].mount_name, 0, 64);
+    memset(mountTable[index].name, 0, 256);
+}
 
 void debug_on()
 {
