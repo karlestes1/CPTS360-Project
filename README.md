@@ -3,6 +3,8 @@
 
 ***Disclaimer:*** This project was built as a requirement for the computer science 360 class at Washington State University under the instruction of K.C. Wang. The structure for the filesystem was provided by K.C. Wang, but the logic for shell and interaction with the filesystem was created by me within the provided parameters of the project. 
 
+*****This project is archived and is read-only*****
+
 ---
 ### Description
 This project implements a custom shell over a version of the ext2 file system. The shell allows for someone to interact via the terminal with the file system. A user can create/delete/modify files, and mount/unmount new partititions. 
